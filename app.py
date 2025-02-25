@@ -881,8 +881,58 @@ async def search_by_multimodal(
                 detail=f"Invalid or unsupported image format. Please convert your image to JPG, PNG, or other common formats. Error: {str(e)}"
             )
     
-    # Search using both image and text
-    results = search_multimodal(image, query, weight_image=weight_image)
+    # Generate caption for the search image using Moondream
+    generated_caption = generate_image_caption(image)
+    
+    # Store full caption for display purposes
+    full_caption = generated_caption if generated_caption else ""
+    
+    # Create an enhanced query by combining user query with the AI caption
+    # CLIP has a maximum context length of 77 tokens - we need to limit our text
+    
+    # MODIFIED APPROACH: Prioritize the user's query over the AI caption
+    # If user query is very long, use it alone
+    # If user query is short, add as much of the AI caption as will fit
+    
+    # Approximate token limit for CLIP (actual limit is 77)
+    CLIP_TOKEN_LIMIT = 70  # Using a slightly conservative limit for safety
+    
+    # Estimate query length in tokens (rough approximation using character count)
+    # A better implementation would use a proper tokenizer, but this is a reasonable approximation
+    estimated_query_tokens = len(query) / 4  # Rough estimate: ~4 chars per token on average
+    
+    enhanced_query = query
+    caption_was_added = False
+    
+    # Check if we have space for the caption
+    if generated_caption and estimated_query_tokens < CLIP_TOKEN_LIMIT - 5:  # Leave some buffer
+        # Calculate approximately how many tokens we have left for the caption
+        approx_tokens_left = CLIP_TOKEN_LIMIT - estimated_query_tokens
+        approx_chars_left = int(approx_tokens_left * 4)  # Convert back to character estimate
+        
+        # Truncate caption if needed
+        truncated_caption = generated_caption
+        if len(generated_caption) > approx_chars_left:
+            # Cut to approximate length and try to end at a complete word
+            truncated_caption = generated_caption[:approx_chars_left] + "..."
+            # Try to end at the last complete word
+            last_space = truncated_caption.rfind(" ", 0, approx_chars_left - 3)
+            if last_space > 0:
+                truncated_caption = generated_caption[:last_space] + "..."
+        
+        # Only add the caption if we have meaningful space for it
+        if approx_tokens_left > 5:  # Only add if we have space for at least a few words
+            enhanced_query = f"{query} {truncated_caption}"
+            caption_was_added = True
+            logger.info(f"Enhanced query with AI caption (prioritizing user query): '{enhanced_query}'")
+        else:
+            logger.info(f"User query takes up most of the token limit. Using only user query: '{query}'")
+    else:
+        if generated_caption:
+            logger.info(f"User query is too long to add AI caption. Using only user query: '{query}'")
+    
+    # Search using both image and enhanced text
+    results = search_multimodal(image, enhanced_query, weight_image=weight_image)
     
     # Format results for display
     result_html = ""
@@ -899,6 +949,27 @@ async def search_by_multimodal(
     # Format the weight as a percentage for display
     image_weight_pct = f"{weight_image * 100:.0f}%"
     text_weight_pct = f"{(1 - weight_image) * 100:.0f}%"
+    
+    # Prepare caption display section
+    caption_section = ""
+    if full_caption:
+        caption_note = "This caption was automatically added to your search query (space permitting)" if caption_was_added else "Your query was prioritized, so this caption was not included in the search"
+        caption_section = f"""
+        <div class="ai-caption">
+            <h4>AI Caption for Your Image:</h4>
+            <p><em>"{full_caption}"</em></p>
+            <p class="note">{caption_note}</p>
+        </div>
+        """
+    
+    # Display the actual query used for embedding generation
+    final_query_section = f"""
+    <div class="final-query">
+        <h4>Final Query Used for Search:</h4>
+        <p style="background-color: #f5f5f5; padding: 10px; border-radius: 5px;"><code>{enhanced_query}</code></p>
+        <p class="note">This is the exact text used to generate the CLIP embedding for similarity search</p>
+    </div>
+    """
     
     # Return HTML response
     return HTMLResponse(f"""
@@ -918,6 +989,10 @@ async def search_by_multimodal(
             img {{ max-width: 200px; max-height: 200px; }}
             .similarity {{ font-weight: bold; color: #4CAF50; }}
             a {{ display: block; margin: 20px 0; }}
+            .ai-caption {{ background-color: #e6f7ff; padding: 10px; border-radius: 5px; margin: 10px 0; border-left: 5px solid #0099ff; }}
+            .final-query {{ background-color: #fff8e6; padding: 10px; border-radius: 5px; margin: 10px 0; border-left: 5px solid #ffa600; }}
+            .note {{ font-size: 0.9em; color: #666; }}
+            code {{ word-wrap: break-word; overflow-wrap: break-word; white-space: pre-wrap; }}
         </style>
     </head>
     <body>
@@ -932,7 +1007,11 @@ async def search_by_multimodal(
             
             <div class="text-query">
                 <h3>Text Query</h3>
-                <p>"{query}"</p>
+                <p>Original query: "{query}"</p>
+                
+                {caption_section}
+                
+                {final_query_section}
                 
                 <div class="weights">
                     <h4>Search Weights</h4>

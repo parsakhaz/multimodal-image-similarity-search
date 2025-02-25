@@ -2,6 +2,54 @@
 
 All notable changes to the ImageMatch project will be documented in this file.
 
+## [1.4.1] - 2024-03-03
+
+Enhanced search transparency.
+
+### Added
+- Display of the exact final query used for CLIP embedding generation in multimodal search results
+- Improved visibility of how user queries and AI captions are combined for search
+
+### Changed
+- Enhanced multimodal search results page with a dedicated section showing the actual text used for embedding
+
+## [1.4.0] - 2024-03-02
+
+Improved multimodal search query handling.
+
+### Changed
+- Significantly improved how text queries are handled in multimodal search
+- Now prioritizing user's explicit query text over AI-generated captions
+- Enhanced token allocation logic to ensure user queries are preserved in full whenever possible
+- Added transparent UI feedback showing whether caption was included in search or not
+
+### Fixed
+- Further refined the solution to token limit issues in multimodal search
+- Better handling of longer user queries by dynamically adjusting caption inclusion
+
+## [1.3.9] - 2024-03-01
+
+Fixed token limit issue in multimodal search.
+
+### Fixed
+- Resolved error when combined text query exceeded CLIP's token limit (77 tokens)
+- Implemented intelligent text truncation for both user queries and AI captions
+- Added safety mechanism to ensure queries remain within model constraints
+- Improved handling of caption display to show full caption while using truncated version for search
+
+## [1.3.8] - 2024-02-29
+
+Enhanced multimodal search functionality with automatic image captioning.
+
+### Added
+- Automatic caption generation for images used in multimodal search
+- Integration of AI-generated captions into text queries for more comprehensive search results
+- Visual display of generated captions in search results for transparency
+
+### Changed
+- Improved multimodal search to leverage both user-provided text and AI-generated descriptions
+- Enhanced search results presentation to show original query and AI captions separately
+
 ## [1.3.7] - 2024-02-28
 
 Enhanced metadata handling and display for better search results.

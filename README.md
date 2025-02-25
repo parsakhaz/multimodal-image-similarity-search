@@ -8,14 +8,12 @@ A powerful image similarity search application that leverages CLIP embeddings an
   - CLIP model for semantic image understanding
   - Moondream model for automatic image captioning
   - Background removal with rembg for focused analysis
-  - Object recognition/understanding for identifying items within images (thanks to Moondream's captioning)
 
 - **Advanced Search Capabilities**:
   - Image-based similarity search
   - Natural language text queries
   - Multimodal search combining image and text inputs
   - Fast vector similarity search via Pinecone
-  - Reverse image search functionality VIA image based similarity search
 
 - **Intelligent Data Management**:
   - Content-based deduplication using perceptual hashing
@@ -125,6 +123,7 @@ Access the application at <http://localhost:8000>
    - Combine image and text inputs
    - Adjust weights between visual and textual similarity
    - Fine-tune results based on your needs
+   - **Note**: Text queries limited to CLIP's 77 token maximum (prioritizes user queries over AI captions)
 
 ### System Management
 
@@ -182,6 +181,21 @@ Access the application at <http://localhost:8000>
    - Monitor memory usage for large images
    - Check background removal results
 
+## Current Limitations
+
+### Token Limit for Text Queries
+
+- **CLIP Model Constraint**: The underlying CLIP model has a maximum token limit of 77 tokens for text inputs
+- **Impact on Multimodal Search**: Long text queries or combined queries (user text + AI caption) may be truncated
+- **Current Solution**: The system prioritizes user queries and intelligently manages text allocation to stay within limits
+- **Future Plan**: Integration with LongCLIP to support longer text contexts and eliminate token limitations
+
+### Other Considerations
+
+- Background removal may occasionally remove important visual elements
+- Very large image collections may experience performance degradation
+- Some uncommon image formats may require conversion before upload
+
 ## Development Roadmap
 
 - Hybrid search combining vector and text capabilities
@@ -190,3 +204,4 @@ Access the application at <http://localhost:8000>
 - Batch processing optimization
 - REST API development
 - Enhanced preprocessing options
+- **LongCLIP Integration**: Support for extended text contexts in searches
