@@ -76,6 +76,7 @@ MOONDREAM_API_KEY=your_moondream_api_key
 
 2. Obtain necessary API keys:
    - Pinecone: Sign up at <https://www.pinecone.io/>
+      - Make sure that your image index has a dimension of 768. Other config is default.
    - Moondream: Register at [console.moondream.ai](https://console.moondream.ai/)
 
 ### 5. Run the Application
@@ -183,12 +184,11 @@ Access the application at <http://localhost:8000>
 
 ## Current Limitations
 
-### Token Limit for Text Queries
+### Text Processing Capabilities
 
-- **CLIP Model Constraint**: The underlying CLIP model has a maximum token limit of 77 tokens for text inputs
-- **Impact on Multimodal Search**: Long text queries or combined queries (user text + AI caption) may be truncated
-- **Current Solution**: The system prioritizes user queries and intelligently manages text allocation to stay within limits
-- **Future Plan**: Integration with LongCLIP to support longer text contexts and eliminate token limitations
+- **Extended Token Support**: The system now uses LongCLIP with a 248 token limit (upgraded from CLIP's 77 token limit)
+- **Impact on Multimodal Search**: Long text queries and AI captions can now be combined with minimal truncation
+- **Solution Implementation**: The system still prioritizes user queries but can now include much more descriptive text
 
 ### Other Considerations
 
@@ -204,4 +204,5 @@ Access the application at <http://localhost:8000>
 - Batch processing optimization
 - REST API development
 - Enhanced preprocessing options
-- **LongCLIP Integration**: Support for extended text contexts in searches
+- **Semantic Image Segmentation**: Support for region-based search within images
+- **Fine-tuned Embeddings**: Domain-specific model adaptation for specialized collections

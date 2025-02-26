@@ -5,7 +5,7 @@ import torch
 import numpy as np
 from typing import Dict, Optional
 from PIL import Image
-from transformers import CLIPProcessor, CLIPModel
+from transformers import CLIPProcessor, CLIPModel, CLIPConfig
 from rembg import remove
 from pinecone import Pinecone, ServerlessSpec
 
@@ -13,7 +13,8 @@ from pinecone import Pinecone, ServerlessSpec
 logger = logging.getLogger("image-match")
 
 # Model constants
-CLIP_MODEL_ID = "openai/clip-vit-base-patch32"
+CLIP_MODEL_ID = "zer0int/LongCLIP-GmP-ViT-L-14"
+MAX_TOKEN_LENGTH = 248
 
 # Pinecone constants
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
@@ -27,19 +28,26 @@ _clip_processor = None
 
 @torch.no_grad()
 def load_clip_model():
-    """Load CLIP model and processor, with caching to avoid reloading"""
+    """Load LongCLIP model and processor, with caching to avoid reloading"""
     global _clip_model, _clip_processor
     
     # Return cached model if available
     if _clip_model is not None and _clip_processor is not None:
-        logger.info("Using cached CLIP model")
+        logger.info("Using cached LongCLIP model")
         return _clip_model, _clip_processor
     
-    logger.info(f"Loading CLIP model: {CLIP_MODEL_ID}")
+    logger.info(f"Loading LongCLIP model: {CLIP_MODEL_ID}")
     start_time = time.time()
-    _clip_model = CLIPModel.from_pretrained(CLIP_MODEL_ID)
-    _clip_processor = CLIPProcessor.from_pretrained(CLIP_MODEL_ID)
-    logger.info(f"CLIP model loaded in {time.time() - start_time:.2f} seconds")
+    
+    # Implementing LongCLIP with extended token context (248 tokens)
+    config = CLIPConfig.from_pretrained(CLIP_MODEL_ID)
+    config.text_config.max_position_embeddings = MAX_TOKEN_LENGTH
+    
+    _clip_model = CLIPModel.from_pretrained(CLIP_MODEL_ID, config=config)
+    _clip_processor = CLIPProcessor.from_pretrained(CLIP_MODEL_ID, padding="max_length", max_length=MAX_TOKEN_LENGTH)
+    
+    logger.info(f"LongCLIP model loaded in {time.time() - start_time:.2f} seconds")
+    logger.info(f"Model supports up to {MAX_TOKEN_LENGTH} tokens for text input")
     return _clip_model, _clip_processor
 
 def remove_background(image: Image.Image) -> Image.Image:
@@ -57,7 +65,7 @@ def generate_clip_embedding(
     model=None,
     processor=None
 ) -> Dict[str, np.ndarray]:
-    """Generate image and/or text embeddings using CLIP"""
+    """Generate image and/or text embeddings using LongCLIP"""
     if model is None or processor is None:
         model, processor = load_clip_model()
     
@@ -73,11 +81,21 @@ def generate_clip_embedding(
         result["image"] = image_embedding.cpu().numpy()
         logger.info(f"Image embedding generated in {time.time() - start_time:.2f} seconds")
     
-    # Process text
+    # Process text - now handling longer text with LongCLIP (up to 248 tokens)
     if text is not None:
         logger.info(f"Generating text embedding for: '{text}'")
         start_time = time.time()
-        inputs = processor(text=[text], return_tensors="pt", padding=True)
+        
+        # Using the max_length parameter to properly handle long text
+        inputs = processor(text=[text], return_tensors="pt", padding="max_length", max_length=MAX_TOKEN_LENGTH, truncation=True)
+        
+        # Log token count for debugging
+        token_count = len(inputs.input_ids[0])
+        if token_count >= MAX_TOKEN_LENGTH:
+            logger.warning(f"Text was truncated: {token_count} tokens (max: {MAX_TOKEN_LENGTH})")
+        else:
+            logger.info(f"Text token count: {token_count} (max: {MAX_TOKEN_LENGTH})")
+            
         text_features = model.get_text_features(**inputs)
         text_embedding = text_features / text_features.norm(dim=1, keepdim=True)
         result["text"] = text_embedding.cpu().numpy()
@@ -109,7 +127,7 @@ def init_pinecone():
         try:
             pc.create_index(
                 name=INDEX_NAME,
-                dimension=512,  # CLIP's embedding size
+                dimension=768,  # LongCLIP's embedding size
                 metric="cosine",
                 spec=ServerlessSpec(
                     cloud=PINECONE_CLOUD,

@@ -2,6 +2,25 @@
 
 All notable changes to the ImageMatch project will be documented in this file.
 
+## [1.5.0] - 2024-03-04
+
+Major enhancement to text processing capabilities with LongCLIP.
+
+### Added
+- Implemented LongCLIP model with extended token support (248 tokens vs. 77)
+- Significantly increased text query capacity for more comprehensive descriptions
+- Better handling of combined queries with AI captions without truncation
+
+### Changed
+- Upgraded from standard CLIP model to LongCLIP for improved performance
+- Enhanced multimodal search to leverage longer text contexts
+- Improved token limit handling throughout the application
+- Updated logging to provide better visibility into token usage
+
+### Fixed
+- Removed unnecessary truncation of captions in multimodal search
+- Eliminated ellipsis characters that could affect embedding quality
+
 ## [1.4.1] - 2024-03-03
 
 Enhanced search transparency.

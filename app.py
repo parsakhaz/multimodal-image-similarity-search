@@ -72,7 +72,8 @@ try:
         PINECONE_API_KEY,
         PINECONE_CLOUD,
         PINECONE_REGION,
-        INDEX_NAME
+        INDEX_NAME,
+        MAX_TOKEN_LENGTH
     )
     
     logger.info("All dependencies imported successfully")
@@ -888,14 +889,14 @@ async def search_by_multimodal(
     full_caption = generated_caption if generated_caption else ""
     
     # Create an enhanced query by combining user query with the AI caption
-    # CLIP has a maximum context length of 77 tokens - we need to limit our text
+    # LongCLIP has a maximum context length of 248 tokens (upgraded from CLIP's 77)
     
     # MODIFIED APPROACH: Prioritize the user's query over the AI caption
     # If user query is very long, use it alone
     # If user query is short, add as much of the AI caption as will fit
     
-    # Approximate token limit for CLIP (actual limit is 77)
-    CLIP_TOKEN_LIMIT = 70  # Using a slightly conservative limit for safety
+    # Using a slightly conservative limit for safety
+    CLIP_TOKEN_LIMIT = MAX_TOKEN_LENGTH - 10  # Leaving buffer for padding tokens
     
     # Estimate query length in tokens (rough approximation using character count)
     # A better implementation would use a proper tokenizer, but this is a reasonable approximation
@@ -904,32 +905,32 @@ async def search_by_multimodal(
     enhanced_query = query
     caption_was_added = False
     
-    # Check if we have space for the caption
-    if generated_caption and estimated_query_tokens < CLIP_TOKEN_LIMIT - 5:  # Leave some buffer
-        # Calculate approximately how many tokens we have left for the caption
-        approx_tokens_left = CLIP_TOKEN_LIMIT - estimated_query_tokens
-        approx_chars_left = int(approx_tokens_left * 4)  # Convert back to character estimate
-        
-        # Truncate caption if needed
-        truncated_caption = generated_caption
-        if len(generated_caption) > approx_chars_left:
-            # Cut to approximate length and try to end at a complete word
-            truncated_caption = generated_caption[:approx_chars_left] + "..."
-            # Try to end at the last complete word
-            last_space = truncated_caption.rfind(" ", 0, approx_chars_left - 3)
-            if last_space > 0:
-                truncated_caption = generated_caption[:last_space] + "..."
-        
-        # Only add the caption if we have meaningful space for it
-        if approx_tokens_left > 5:  # Only add if we have space for at least a few words
+    # With LongCLIP's higher token limit, we can now include more of the caption
+    if generated_caption:
+        # Check if we have space for the caption
+        if estimated_query_tokens < CLIP_TOKEN_LIMIT - 5:  # Leave some buffer
+            # Calculate approximately how many tokens we have left for the caption
+            approx_tokens_left = CLIP_TOKEN_LIMIT - estimated_query_tokens
+            approx_chars_left = int(approx_tokens_left * 4)  # Convert back to character estimate
+            
+            # Truncate caption if needed
+            truncated_caption = generated_caption
+            if len(generated_caption) > approx_chars_left:
+                # Cut to approximate length and try to end at a complete word
+                truncated_caption = generated_caption[:approx_chars_left]
+                # Try to end at the last complete word
+                last_space = truncated_caption.rfind(" ", 0, approx_chars_left)
+                if last_space > 0:
+                    truncated_caption = generated_caption[:last_space]
+            
+            # With higher token limits, we can almost always add the caption
             enhanced_query = f"{query} {truncated_caption}"
             caption_was_added = True
-            logger.info(f"Enhanced query with AI caption (prioritizing user query): '{enhanced_query}'")
+            logger.info(f"Enhanced query with AI caption (using LongCLIP's extended token limit): '{enhanced_query}'")
         else:
             logger.info(f"User query takes up most of the token limit. Using only user query: '{query}'")
     else:
-        if generated_caption:
-            logger.info(f"User query is too long to add AI caption. Using only user query: '{query}'")
+        logger.info(f"No AI caption generated. Using only user query: '{query}'")
     
     # Search using both image and enhanced text
     results = search_multimodal(image, enhanced_query, weight_image=weight_image)
