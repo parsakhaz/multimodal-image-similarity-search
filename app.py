@@ -258,8 +258,10 @@ def process_image(
             filter_results = {}
             for filter_query in filters:
                 try:
+                    # Format the query with yes/no instruction if needed
+                    formatted_query = format_filter_query(filter_query)
                     logger.info(f"Applying filter '{filter_query}' to new image")
-                    answer = moondream_model.query(encoded_image, filter_query)["answer"]
+                    answer = moondream_model.query(encoded_image, formatted_query)["answer"]
                     logger.info(f"Filter result: {answer}")
                     filter_results[filter_query] = answer.strip() if isinstance(answer, str) else answer
                 except Exception as e:
@@ -455,6 +457,46 @@ def load_filters() -> List[str]:
         logger.error(f"Error loading filters: {e}")
         return []
 
+def format_filter_query(filter_query: str) -> str:
+    """Format a filter query by appending instructions to answer yes/no if not already present
+    
+    Args:
+        filter_query: The user-provided filter query
+        
+    Returns:
+        Formatted query with "answer either yes or no" instruction appended if needed
+    """
+    # Check if the query already contains instructions to answer yes/no
+    lower_query = filter_query.lower()
+    if "answer yes or no" in lower_query or "answer either yes or no" in lower_query:
+        return filter_query
+    
+    # Otherwise, append the instruction
+    return f"{filter_query} answer either yes or no"
+
+def format_filter_for_display(filter_query: str) -> str:
+    """Format a filter for display in the UI by removing answer instructions
+    
+    Args:
+        filter_query: The filter query to format
+        
+    Returns:
+        Cleaned filter query suitable for UI display
+    """
+    # Remove the "answer" instructions from the display
+    display = filter_query.replace(" answer either yes or no", "")
+    display = display.replace(" answer yes or no", "")
+    
+    # Clean up any trailing punctuation that might look odd after removal
+    display = display.rstrip(" ?.")
+    
+    # Add a question mark if the filter is a question and doesn't end with punctuation
+    if any(q in display.lower() for q in ["is ", "are ", "does ", "do ", "has ", "have ", "can ", "could ", "would "]):
+        if not display.endswith("?"):
+            display += "?"
+    
+    return display
+
 def save_filters(filters: List[str]) -> None:
     """Save the list of dynamic filters to the filters.json file
     
@@ -490,9 +532,10 @@ def process_filter_on_all_images(filter_query: str) -> None:
             # Load the encoded image
             encoded_image = load_encoded_image(image_id)
             if encoded_image is not None:
-                # Query the model
+                # Format the query with yes/no instruction if needed
+                formatted_query = format_filter_query(filter_query)
                 logger.info(f"Applying filter '{filter_query}' to image {image_id}")
-                answer = moondream_model.query(encoded_image, filter_query)["answer"]
+                answer = moondream_model.query(encoded_image, formatted_query)["answer"]
                 logger.info(f"Filter result for {image_id}: {answer}")
                 
                 # Update the metadata
@@ -572,14 +615,15 @@ def home():
     
     # Load existing filters
     filters = load_filters()
-    filter_list_html = "<ul>" + "".join([f"<li>{f}</li>" for f in filters]) + "</ul>" if filters else "<p>No filters defined yet</p>"
+    filter_list_html = "<ul>" + "".join([f"<li>{format_filter_for_display(f)}</li>" for f in filters]) + "</ul>" if filters else "<p>No filters defined yet</p>"
     
     # Create filter checkboxes for search forms
     filter_checkboxes = ""
     if filters:
         filter_checkboxes = "<div class='filter-options'><h4>Apply Filters</h4>"
         for f in filters:
-            filter_checkboxes += f'<label><input type="checkbox" name="filters" value="{f}"> {f}</label><br>'
+            display_text = format_filter_for_display(f)
+            filter_checkboxes += f'<label><input type="checkbox" name="filters" value="{f}"> {display_text}</label><br>'
         filter_checkboxes += "</div>"
     
     return f"""
@@ -933,7 +977,8 @@ async def search_by_image(
                         answer = filter_results.get(f, "unknown")
                         if isinstance(answer, str):
                             answer = answer.strip()
-                        filter_display += f"<li><strong>{f}</strong>: {answer}</li>"
+                        display_text = format_filter_for_display(f)
+                        filter_display += f"<li><strong>{display_text}</strong>: {answer}</li>"
                     filter_display += "</ul></div>"
                 except (json.JSONDecodeError, TypeError):
                     logger.warning(f"Error parsing filter_results_json for display, image {r['id']}")
@@ -1032,7 +1077,8 @@ async def search_by_text_route(query: str, filters: List[str] = None):
                         answer = filter_results.get(f, "unknown")
                         if isinstance(answer, str):
                             answer = answer.strip()
-                        filter_display += f"<li><strong>{f}</strong>: {answer}</li>"
+                        display_text = format_filter_for_display(f)
+                        filter_display += f"<li><strong>{display_text}</strong>: {answer}</li>"
                     filter_display += "</ul></div>"
                 except (json.JSONDecodeError, TypeError):
                     logger.warning(f"Error parsing filter_results_json for display, image {r['id']}")
@@ -1744,7 +1790,8 @@ async def search_by_multimodal(
                         answer = filter_results.get(f, "unknown")
                         if isinstance(answer, str):
                             answer = answer.strip()
-                        filter_display += f"<li><strong>{f}</strong>: {answer}</li>"
+                        display_text = format_filter_for_display(f)
+                        filter_display += f"<li><strong>{display_text}</strong>: {answer}</li>"
                     filter_display += "</ul></div>"
                 except (json.JSONDecodeError, TypeError):
                     logger.warning(f"Error parsing filter_results_json for display, image {r['id']}")
