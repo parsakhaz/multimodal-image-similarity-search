@@ -2,93 +2,262 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ImageMatch</title>
     <style>
+        :root {
+            --primary-color: #4361ee;
+            --secondary-color: #3f37c9;
+            --success-color: #4CAF50;
+            --text-color: #333;
+            --light-bg: #f8f9fa;
+            --border-color: #dee2e6;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --radius: 8px;
+        }
+        
         body { 
-            font-family: Arial, sans-serif; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             max-width: 1200px; 
             margin: 0 auto; 
-            padding: 20px; 
-        }
-        h1 { color: #333; }
-        #search-form {
-            background-color: #f5f5f5;
             padding: 20px;
-            border-radius: 5px;
+            background-color: #fff;
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+        
+        h1 { 
+            color: var(--primary-color);
+            font-weight: 700;
+            margin-bottom: 30px;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+        
+        #search-form {
+            background-color: var(--light-bg);
+            padding: 25px;
+            border-radius: var(--radius);
+            margin-bottom: 30px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+        }
+        
+        .form-group {
             margin-bottom: 20px;
         }
-        .form-group {
-            margin-bottom: 15px;
-        }
+        
         label {
             display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
         }
+        
         input[type="text"] {
             width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 3px;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            font-size: 16px;
+            transition: border-color 0.3s, box-shadow 0.3s;
+            box-sizing: border-box;
         }
+        
+        input[type="text"]:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.2);
+            outline: none;
+        }
+        
+        input[type="file"] {
+            padding: 8px 0;
+        }
+        
+        /* Custom file input styling */
+        .file-input-container {
+            position: relative;
+            margin-top: 8px;
+        }
+        
+        .file-input-container input[type="file"] {
+            opacity: 0;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+            z-index: 2;
+        }
+        
+        .file-input-button {
+            display: flex;
+            align-items: center;
+            background-color: var(--light-bg);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 10px 15px;
+            width: 100%;
+            font-size: 14px;
+            position: relative;
+            color: #555;
+            transition: all 0.2s;
+            box-sizing: border-box;
+        }
+        
+        .file-input-container:hover .file-input-button {
+            border-color: var(--primary-color);
+            background-color: rgba(67, 97, 238, 0.05);
+        }
+        
+        .file-input-button svg {
+            margin-right: 8px;
+            color: var(--primary-color);
+            flex-shrink: 0;
+        }
+        
+        .file-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-left: 8px;
+            margin-right: 8px;
+            max-width: calc(100% - 150px);
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+        
+        .remove-file-btn {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(244, 67, 54, 0.1);
+            color: #d32f2f;
+            border: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            margin-left: auto;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: all 0.2s;
+            z-index: 3;
+        }
+        
+        .remove-file-btn:hover {
+            background-color: rgba(244, 67, 54, 0.2);
+        }
+        
+        .remove-file-btn svg {
+            width: 16px;
+            height: 16px;
+            stroke: currentColor;
+            stroke-width: 2;
+            margin: 0;
+        }
+        
         #weight-display {
             display: inline-block;
             width: 40px;
             text-align: center;
+            font-weight: bold;
+            color: var(--primary-color);
         }
+        
+        input[type="range"] {
+            width: 100%;
+            margin-top: 8px;
+            accent-color: var(--primary-color);
+        }
+        
         #results { 
             display: flex; 
             flex-wrap: wrap; 
-            margin-top: 20px; 
+            gap: 20px;
+            margin-top: 30px; 
         }
+        
         .result { 
-            margin: 10px; 
+            margin: 0; 
             text-align: center; 
-            width: 220px; 
-            border: 1px solid #ddd; 
-            padding: 10px; 
-            border-radius: 3px;
+            width: 230px; 
+            border: 1px solid var(--border-color); 
+            padding: 15px; 
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            transition: transform 0.2s;
+            background-color: white;
         }
+        
+        .result:hover {
+            transform: translateY(-5px);
+        }
+        
         img { 
             max-width: 200px; 
-            max-height: 200px; 
+            max-height: 200px;
+            border-radius: 5px;
+            object-fit: contain;
         }
+        
         .similarity { 
             font-weight: bold; 
-            color: #4CAF50; 
+            color: var(--success-color); 
         }
+        
         .filter-results { 
             text-align: left; 
-            margin-top: 10px; 
+            margin-top: 12px; 
             font-size: 0.9em; 
-            background-color: #f5f5f5; 
-            padding: 5px; 
+            background-color: var(--light-bg); 
+            padding: 8px; 
+            border-radius: 5px;
         }
+        
         .filter-results ul { 
             padding-left: 20px; 
             margin: 5px 0; 
         }
+        
         #filters-container {
             display: flex;
             flex-wrap: wrap;
-            gap: 10px;
+            gap: 12px;
+            margin-top: 10px;
         }
+        
         .filter-checkbox {
-            display: inline-block;
-            margin-right: 15px;
+            display: flex;
+            align-items: center;
+            margin: 0;
+            background-color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
         }
+        
+        .filter-checkbox input {
+            margin-right: 6px;
+        }
+        
         button {
-            background-color: #4CAF50;
+            background-color: var(--primary-color);
             color: white;
             border: none;
-            padding: 10px 15px;
+            padding: 12px 20px;
             text-align: center;
-            border-radius: 3px;
+            border-radius: var(--radius);
             cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: background-color 0.3s;
         }
+        
         button:hover {
-            background-color: #45a049;
+            background-color: var(--secondary-color);
         }
+        
         #loading {
             position: fixed;
             top: 0;
@@ -101,17 +270,452 @@
             justify-content: center;
             align-items: center;
         }
+        
+        .loading-container {
+            background: white;
+            padding: 30px;
+            border-radius: var(--radius);
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            max-width: 80%;
+        }
+        
+        .loading-title {
+            font-size: 28px;
+            margin-bottom: 15px;
+            color: var(--text-color);
+            font-weight: bold;
+        }
+        
+        .loading-message {
+            font-size: 18px;
+            color: #666;
+        }
+        
+        .progress-container {
+            margin-top: 20px;
+            height: 6px;
+            background-color: #f3f3f3;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            width: 50%;
+            height: 100%;
+            background-color: var(--primary-color);
+            animation: progress 1.5s infinite ease-in-out;
+        }
+        
         .query-image {
             text-align: center;
             margin-bottom: 20px;
         }
+        
         .query-image img {
             max-width: 300px;
             max-height: 300px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
         }
+        
         @keyframes progress {
             0% { margin-left: -50%; }
             100% { margin-left: 100%; }
+        }
+        
+        h3 {
+            margin-top: 0;
+            color: #555;
+        }
+        
+        /* Enhanced Results Styling */
+        #results {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 25px;
+            margin-top: 30px;
+        }
+        
+        .result {
+            width: auto;
+            display: flex;
+            flex-direction: column;
+            border-radius: var(--radius);
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
+            background-color: white;
+            padding: 0;
+            margin: 0;
+            height: 100%;
+        }
+        
+        .result:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .result-image-container {
+            padding: 15px;
+            background-color: #f8f9fa;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 200px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .result-image-container img {
+            max-width: 100%;
+            max-height: 180px;
+            object-fit: contain;
+            border-radius: 4px;
+        }
+        
+        .result-details {
+            padding: 15px;
+            text-align: left;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .similarity {
+            display: inline-block;
+            background-color: rgba(76, 175, 80, 0.1);
+            color: var(--success-color);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        
+        .result-description {
+            margin-bottom: 12px;
+            font-size: 0.95rem;
+            color: var(--text-color);
+            line-height: 1.5;
+        }
+        
+        .filter-results {
+            background-color: var(--light-bg);
+            border-radius: 6px;
+            padding: 10px;
+            margin-top: auto;
+        }
+        
+        .filter-results h4 {
+            margin-top: 0;
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+            color: #555;
+        }
+        
+        .filter-results ul {
+            margin: 0;
+            padding-left: 20px;
+            font-size: 0.85rem;
+        }
+        
+        .filter-results li {
+            margin-bottom: 2px;
+        }
+        
+        /* SVG Icons and Icon Styles */
+        .icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            stroke-width: 1.5;
+            stroke: currentColor;
+            fill: none;
+            margin-right: 8px;
+            vertical-align: middle;
+            position: relative;
+            top: -1px;
+        }
+        
+        .form-group label {
+            display: flex;
+            align-items: center;
+        }
+        
+        .icon-container {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background-color: rgba(67, 97, 238, 0.1);
+            margin-right: 10px;
+            flex-shrink: 0;
+            position: relative;
+        }
+        
+        .icon-container svg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            margin-right: 0;
+        }
+        
+        /* Enhanced Filter Results Visualization */
+        .filter-tag {
+            display: inline-flex;
+            align-items: center;
+            background-color: rgba(67, 97, 238, 0.1);
+            color: var(--primary-color);
+            padding: 4px 10px;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+        
+        .filter-result-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 6px;
+        }
+        
+        .filter-result-item .icon {
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+        
+        .filter-result-label {
+            font-weight: 600;
+            margin-right: 5px;
+        }
+        
+        .filter-result-value {
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        
+        .filter-result-value.yes {
+            background-color: rgba(76, 175, 80, 0.15);
+            color: #2e7d32;
+        }
+        
+        .filter-result-value.no {
+            background-color: rgba(244, 67, 54, 0.15);
+            color: #d32f2f;
+        }
+        
+        .filter-results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 8px;
+            margin-top: 8px;
+        }
+        
+        button svg {
+            margin-right: 6px;
+        }
+        
+        /* Search button with icon */
+        .search-button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        /* Query Image and Applied Filters Section */
+        .search-summary {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: var(--light-bg);
+            border-radius: var(--radius);
+            border: 1px solid var(--border-color);
+        }
+        
+        .query-image {
+            flex: 0 0 auto;
+            margin-bottom: 0;
+            max-width: 250px;
+        }
+        
+        .query-image img {
+            border-radius: 6px;
+            box-shadow: var(--shadow);
+            max-height: 200px;
+            max-width: 100%;
+        }
+        
+        .applied-filters {
+            flex: 1 1 300px;
+        }
+        
+        .applied-filters h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: var(--primary-color);
+        }
+        
+        .applied-filters ul {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .applied-filters li {
+            margin-bottom: 8px;
+            padding-left: 24px;
+            position: relative;
+        }
+        
+        .applied-filters li:before {
+            content: "•";
+            color: var(--primary-color);
+            font-weight: bold;
+            position: absolute;
+            left: 0;
+            top: 0;
+        }
+        
+        /* Responsive styles */
+        @media (max-width: 768px) {
+            body {
+                padding: 15px;
+            }
+            
+            #search-form {
+                padding: 20px;
+            }
+            
+            .search-summary {
+                flex-direction: column;
+                padding: 15px;
+            }
+            
+            .query-image {
+                margin: 0 auto 15px;
+                text-align: center;
+            }
+            
+            #results {
+                grid-template-columns: 1fr;
+            }
+            
+            h1 {
+                font-size: 24px;
+                margin-bottom: 20px;
+            }
+            
+            .filter-checkbox {
+                margin-bottom: 8px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .search-summary,
+            #search-form {
+                padding: 15px;
+            }
+            
+            button {
+                width: 100%;
+            }
+            
+            #filters-container {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .filter-checkbox {
+                width: 100%;
+            }
+        }
+        
+        /* Validation styles */
+        .error-message {
+            color: #d32f2f;
+            font-size: 0.9rem;
+            margin-top: 8px;
+            display: none;
+            align-items: center;
+        }
+        
+        .error-message .icon {
+            stroke: #d32f2f;
+            width: 18px;
+            height: 18px;
+        }
+        
+        .has-error {
+            border-color: #d32f2f !important;
+            box-shadow: 0 0 0 2px rgba(211, 47, 47, 0.2) !important;
+        }
+        
+        /* Advanced options toggle */
+        .advanced-options-toggle {
+            display: flex;
+            align-items: center;
+            margin-top: 15px;
+            padding: 10px 0;
+            color: var(--primary-color);
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+            border: none;
+            background: transparent;
+            font-size: 14px;
+        }
+        
+        .advanced-options-toggle:hover {
+            text-decoration: underline;
+        }
+        
+        .advanced-options-toggle .icon {
+            transition: transform 0.3s;
+        }
+        
+        .advanced-options-toggle.active .icon {
+            transform: rotate(180deg);
+        }
+        
+        .advanced-options {
+            display: none;
+            margin-top: 15px;
+            padding: 15px;
+            background-color: white;
+            border-radius: var(--radius);
+            border: 1px solid var(--border-color);
+        }
+        
+        .advanced-options.visible {
+            display: block;
+            animation: fadeIn 0.3s;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .slider-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 5px;
+            font-size: 0.85rem;
+            color: #666;
+        }
+        
+        .slider-note {
+            margin-top: 8px;
+            font-size: 0.85rem;
+            color: #666;
+            font-style: italic;
         }
     </style>
 </head>
@@ -122,26 +726,84 @@
     <form id="search-form" enctype="multipart/form-data">
         <!-- Text Search -->
         <div class="form-group">
-            <label for="query">Search by Text:</label>
+            <label for="query">
+                <div class="icon-container">
+                    <svg class="icon" viewBox="0 0 24 24">
+                        <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                </div>
+                Search by Text:
+            </label>
             <input type="text" id="query" name="query" placeholder="Type your search query here...">
         </div>
 
         <!-- Image Upload -->
         <div class="form-group">
-            <label for="file">Search by Image:</label>
-            <input type="file" id="file" name="file" accept="image/*">
+            <label for="file">
+                <div class="icon-container">
+                    <svg class="icon" viewBox="0 0 24 24">
+                        <path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                </div>
+                Search by Image:
+            </label>
+            <div class="file-input-container">
+                <div class="file-input-button">
+                    <svg class="icon" viewBox="0 0 24 24">
+                        <path d="M12 4v16m8-8H4"></path>
+                    </svg>
+                    <span>Choose a file</span>
+                    <span class="file-name"></span>
+                    <button type="button" class="remove-file-btn" title="Remove image">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <input type="file" id="file" name="file" accept="image/*">
+            </div>
         </div>
+        
+        <!-- Advanced Options Toggle -->
+        <button type="button" class="advanced-options-toggle">
+            <svg class="icon" viewBox="0 0 24 24">
+                <path d="M19 9l-7 7-7-7"></path>
+            </svg>
+            Advanced Search Options
+        </button>
 
-        <!-- Multimodal Weight -->
-        <div class="form-group">
-            <label for="weight_image">Text-to-Image Balance: <span id="weight-display">0.5</span></label>
-            <input type="range" id="weight_image" name="weight_image" min="0" max="1" step="0.1" value="0.5" 
-                   oninput="document.getElementById('weight-display').textContent = this.value">
+        <!-- Advanced Options (Hidden by default) -->
+        <div class="advanced-options">
+            <!-- Multimodal Weight -->
+            <div class="form-group">
+                <label for="weight_image">
+                    <div class="icon-container">
+                        <svg class="icon" viewBox="0 0 24 24">
+                            <path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
+                        </svg>
+                    </div>
+                    Text-to-Image Balance: <span id="weight-display">0.5</span>
+                </label>
+                <input type="range" id="weight_image" name="weight_image" min="0" max="1" step="0.1" value="0.5" 
+                      oninput="document.getElementById('weight-display').textContent = this.value">
+                <div class="slider-labels">
+                    <span>100% Text</span>
+                    <span>100% Image</span>
+                </div>
+                <div class="slider-note">
+                    Note: Adjust this balance when searching with both text and image. Move left for text priority, right for image priority.
+                </div>
+            </div>
         </div>
 
         <!-- Filters -->
         <div class="form-group">
-            <h3>Filters</h3>
+            <h3>
+                <svg class="icon" viewBox="0 0 24 24">
+                    <path d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
+                </svg>
+                Filters
+            </h3>
             <div id="filters-container">
                 {% for filter in filters %}
                 <label class="filter-checkbox">
@@ -152,7 +814,12 @@
             </div>
         </div>
 
-        <button type="submit">Search</button>
+        <button type="submit" class="search-button">
+            <svg class="icon" viewBox="0 0 24 24">
+                <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+            Search
+        </button>
     </form>
 
     <!-- Results Area -->
@@ -161,17 +828,68 @@
     </div>
 
     <!-- Loading Indicator -->
-    <div id="loading" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); display: none; z-index: 1000; justify-content: center; align-items: center;">
-        <div style="background: white; padding: 30px; border-radius: 8px; text-align: center; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); max-width: 80%;">
-            <div style="font-size: 28px; margin-bottom: 15px; color: #333; font-weight: bold;">Loading...</div>
-            <div id="loading-message" style="font-size: 18px; color: #666;">Processing your search request</div>
-            <div style="margin-top: 20px; height: 5px; background-color: #f3f3f3; border-radius: 3px; overflow: hidden;">
-                <div style="width: 50%; height: 100%; background-color: #4CAF50; animation: progress 1.5s infinite ease-in-out;" id="progress-bar"></div>
+    <div id="loading">
+        <div class="loading-container">
+            <div class="loading-title">Loading...</div>
+            <div id="loading-message" class="loading-message">Processing your search request</div>
+            <div class="progress-container">
+                <div class="progress-bar" id="progress-bar"></div>
             </div>
         </div>
     </div>
 
     <script>
+        // Advanced options toggle
+        document.querySelector('.advanced-options-toggle').addEventListener('click', function() {
+            const advancedOptions = document.querySelector('.advanced-options');
+            this.classList.toggle('active');
+            advancedOptions.classList.toggle('visible');
+        });
+        
+        // File input enhancement
+        document.getElementById('file').addEventListener('change', function() {
+            const fileName = this.files[0] ? this.files[0].name : '';
+            const fileContainer = this.closest('.file-input-container');
+            const fileNameElement = fileContainer.querySelector('.file-name');
+            const removeBtn = fileContainer.querySelector('.remove-file-btn');
+            
+            if (fileNameElement) {
+                fileNameElement.textContent = fileName;
+            }
+            
+            // Show remove button if a file is selected
+            if (fileName && removeBtn) {
+                removeBtn.style.display = 'flex';
+                removeBtn.style.visibility = 'visible';
+            } else if (removeBtn) {
+                removeBtn.style.display = 'none';
+            }
+        });
+        
+        // Add file removal functionality
+        document.querySelector('.remove-file-btn').addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const fileInput = this.closest('.file-input-container').querySelector('input[type="file"]');
+            const fileNameElement = this.closest('.file-input-container').querySelector('.file-name');
+            
+            // Clear the file input
+            fileInput.value = '';
+            
+            // Clear the displayed filename
+            if (fileNameElement) {
+                fileNameElement.textContent = '';
+            }
+            
+            // Hide the remove button
+            this.style.display = 'none';
+            
+            // Trigger change event to update form state
+            const event = new Event('change', { bubbles: true });
+            fileInput.dispatchEvent(event);
+        });
+        
         // Simple direct approach to show/hide loading screen
         document.getElementById('search-form').addEventListener('submit', function(event) {
             // Prevent the default form submission
@@ -179,6 +897,44 @@
             
             const hasImage = document.getElementById('file').files.length > 0;
             const hasText = document.getElementById('query').value.trim() !== '';
+            
+            // Validate that at least one search input is provided
+            const errorMessage = document.getElementById('search-error-message');
+            
+            // Reset any previous validation errors
+            document.getElementById('query').classList.remove('has-error');
+            document.getElementById('file').classList.remove('has-error');
+            if (errorMessage) {
+                errorMessage.style.display = 'none';
+            }
+            
+            // Check if we have at least one search criteria
+            if (!hasImage && !hasText) {
+                event.preventDefault();
+                
+                // Show error message if it exists, or create it
+                if (errorMessage) {
+                    errorMessage.style.display = 'flex';
+                } else {
+                    const newErrorMessage = document.createElement('div');
+                    newErrorMessage.id = 'search-error-message';
+                    newErrorMessage.className = 'error-message';
+                    newErrorMessage.innerHTML = `
+                        <svg class="icon" viewBox="0 0 24 24">
+                            <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                        Please enter text or upload an image to search
+                    `;
+                    
+                    document.querySelector('.search-button').insertAdjacentElement('beforebegin', newErrorMessage);
+                }
+                
+                // Highlight the inputs
+                document.getElementById('query').classList.add('has-error');
+                document.getElementById('file').classList.add('has-error');
+                
+                return false;
+            }
             
             if (hasImage && hasText) {
                 document.getElementById('loading-message').textContent = 
@@ -205,6 +961,9 @@
                 // Update results and hide loading screen
                 document.getElementById('results').innerHTML = html;
                 loadingElement.style.display = 'none';
+                
+                // Enhance the result HTML with our new structure
+                enhanceSearchResults();
             })
             .catch(error => {
                 console.error('Error:', error);
@@ -212,6 +971,205 @@
                 loadingElement.style.display = 'none';
             });
         });
+        
+        // Function to enhance the search results with our new structure
+        function enhanceSearchResults() {
+            // Look for all result elements
+            const resultsContainer = document.getElementById('results');
+            
+            // Check if there's a query image and filters, wrap them in search-summary
+            const queryImage = resultsContainer.querySelector('[id^="query-image"], [class^="query-image"]');
+            const appliedFilters = resultsContainer.querySelector('.applied-filters');
+            
+            if (queryImage || appliedFilters) {
+                // Create a search summary container
+                const searchSummary = document.createElement('div');
+                searchSummary.className = 'search-summary';
+                
+                // Move elements into it
+                if (queryImage) {
+                    queryImage.className = 'query-image';
+                    resultsContainer.removeChild(queryImage);
+                    searchSummary.appendChild(queryImage);
+                }
+                
+                if (appliedFilters) {
+                    resultsContainer.removeChild(appliedFilters);
+                    searchSummary.appendChild(appliedFilters);
+                }
+                
+                // Insert at the beginning
+                if (resultsContainer.firstChild) {
+                    resultsContainer.insertBefore(searchSummary, resultsContainer.firstChild);
+                } else {
+                    resultsContainer.appendChild(searchSummary);
+                }
+            }
+            
+            // Enhance each individual result card
+            const results = resultsContainer.querySelectorAll('.result');
+            results.forEach(result => {
+                // Skip if already enhanced
+                if (result.querySelector('.result-image-container')) return;
+                
+                // Get the content
+                const img = result.querySelector('img');
+                const similarity = result.querySelector('.similarity');
+                const description = similarity ? similarity.nextElementSibling : null;
+                const filterResults = result.querySelector('.filter-results');
+                
+                // Clear the result
+                result.innerHTML = '';
+                
+                // Create image container
+                const imageContainer = document.createElement('div');
+                imageContainer.className = 'result-image-container';
+                if (img) imageContainer.appendChild(img.cloneNode(true));
+                result.appendChild(imageContainer);
+                
+                // Create details container
+                const detailsContainer = document.createElement('div');
+                detailsContainer.className = 'result-details';
+                
+                // Add similarity with icon
+                if (similarity) {
+                    const similarityEl = document.createElement('div');
+                    similarityEl.className = 'similarity';
+                    similarityEl.innerHTML = `
+                        <svg class="icon" viewBox="0 0 24 24">
+                            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        ${similarity.textContent}
+                    `;
+                    detailsContainer.appendChild(similarityEl);
+                }
+                
+                // Add description
+                if (description) {
+                    const descriptionEl = document.createElement('div');
+                    descriptionEl.className = 'result-description';
+                    descriptionEl.textContent = description.textContent;
+                    detailsContainer.appendChild(descriptionEl);
+                }
+                
+                // Enhanced filter results with better visualization
+                if (filterResults) {
+                    const enhancedFilterResults = document.createElement('div');
+                    enhancedFilterResults.className = 'filter-results';
+                    
+                    // Get the original header and create an enhanced version
+                    const header = filterResults.querySelector('h4');
+                    if (header) {
+                        const enhancedHeader = document.createElement('h4');
+                        enhancedHeader.innerHTML = `
+                            <svg class="icon" viewBox="0 0 24 24">
+                                <path d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
+                            </svg>
+                            ${header.textContent}
+                        `;
+                        enhancedFilterResults.appendChild(enhancedHeader);
+                    }
+                    
+                    // Get the original list items and create enhanced versions
+                    const items = filterResults.querySelectorAll('li');
+                    if (items.length > 0) {
+                        const filterResultsGrid = document.createElement('div');
+                        filterResultsGrid.className = 'filter-results-grid';
+                        
+                        items.forEach(item => {
+                            const text = item.innerHTML;
+                            const [label, value] = text.split(':').map(s => s.trim());
+                            
+                            // Create an enhanced item
+                            const enhancedItem = document.createElement('div');
+                            enhancedItem.className = 'filter-result-item';
+                            
+                            // Add appropriate icon based on the result
+                            let icon, valueClass = '';
+                            if (value && value.toLowerCase() === 'yes') {
+                                icon = '<svg class="icon" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>';
+                                valueClass = 'yes';
+                            } else if (value && value.toLowerCase() === 'no') {
+                                icon = '<svg class="icon" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"></path></svg>';
+                                valueClass = 'no';
+                            } else {
+                                icon = '<svg class="icon" viewBox="0 0 24 24"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>';
+                            }
+                            
+                            enhancedItem.innerHTML = `
+                                ${icon}
+                                <div>
+                                    <span class="filter-result-label">${label}</span>
+                                    <span class="filter-result-value ${valueClass}">${value}</span>
+                                </div>
+                            `;
+                            
+                            filterResultsGrid.appendChild(enhancedItem);
+                        });
+                        
+                        enhancedFilterResults.appendChild(filterResultsGrid);
+                    }
+                    
+                    detailsContainer.appendChild(enhancedFilterResults);
+                }
+                
+                result.appendChild(detailsContainer);
+            });
+            
+            // Enhance query sections with icons
+            const querySection = resultsContainer.querySelector('[id^="query"]');
+            if (querySection && !querySection.querySelector('.icon')) {
+                const header = querySection.querySelector('h3');
+                if (header) {
+                    header.innerHTML = `
+                        <svg class="icon" viewBox="0 0 24 24">
+                            <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                        ${header.textContent}
+                    `;
+                }
+            }
+            
+            // Enhance applied filters section with icons
+            if (appliedFilters && !appliedFilters.querySelector('.icon')) {
+                const header = appliedFilters.querySelector('h3');
+                if (header) {
+                    header.innerHTML = `
+                        <svg class="icon" viewBox="0 0 24 24">
+                            <path d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
+                        </svg>
+                        ${header.textContent}
+                    `;
+                }
+                
+                // Convert filter list items to filter tags
+                const filterItems = appliedFilters.querySelectorAll('li');
+                if (filterItems.length > 0) {
+                    const filterTagsContainer = document.createElement('div');
+                    filterTagsContainer.style.display = 'flex';
+                    filterTagsContainer.style.flexWrap = 'wrap';
+                    filterTagsContainer.style.marginTop = '10px';
+                    
+                    filterItems.forEach(item => {
+                        const filterTag = document.createElement('div');
+                        filterTag.className = 'filter-tag';
+                        filterTag.innerHTML = `
+                            <svg class="icon" style="width: 16px; height: 16px; margin-right: 4px;">
+                                <path d="M7 7l3-3 3 3M7 17l3 3 3-3"></path>
+                            </svg>
+                            ${item.textContent}
+                        `;
+                        filterTagsContainer.appendChild(filterTag);
+                    });
+                    
+                    // Replace the list with our tags
+                    const ul = appliedFilters.querySelector('ul');
+                    if (ul) {
+                        ul.parentNode.replaceChild(filterTagsContainer, ul);
+                    }
+                }
+            }
+        }
     </script>
 </body>
 </html> 
