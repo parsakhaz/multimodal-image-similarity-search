@@ -26,7 +26,8 @@ A powerful image similarity search application that leverages CLIP embeddings an
   - Modular, maintainable architecture
   - Detailed logging system
   - Efficient model caching
-  - Clean web interface
+  - Clean, consistent web interface with standardized navigation
+  - Unified design language across all application pages
 
 ## Prerequisites
 

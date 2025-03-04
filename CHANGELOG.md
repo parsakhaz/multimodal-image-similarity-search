@@ -2,6 +2,19 @@
 
 All notable changes to the ImageMatch project will be documented in this file.
 
+## [2.2.1] - 2024-03-08
+
+UI consistency enhancements across application pages.
+
+### Added
+- Standardized header component across all application pages
+- Consistent navigation links in header for improved user experience
+
+### Changed
+- Refactored manage.html to use the same header and navigation as main.html
+- Updated styling for navigation elements to ensure visual consistency
+- Enhanced overall UI uniformity between search and management interfaces
+
 ## [2.2.0] - 2024-03-07
 
 Added AI-powered dynamic filters feature for attribute-based image filtering.
