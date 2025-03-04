@@ -7,7 +7,7 @@ from typing import Dict, Optional
 from PIL import Image
 from transformers import CLIPProcessor, CLIPModel, CLIPConfig
 from rembg import remove
-from pinecone import Pinecone, ServerlessSpec
+import chromadb
 
 # Configure logger
 logger = logging.getLogger("image-match")
@@ -16,11 +16,9 @@ logger = logging.getLogger("image-match")
 CLIP_MODEL_ID = "zer0int/LongCLIP-GmP-ViT-L-14"
 MAX_TOKEN_LENGTH = 248
 
-# Pinecone constants
-PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-PINECONE_CLOUD = os.getenv("PINECONE_CLOUD", "aws")
-PINECONE_REGION = os.getenv("PINECONE_REGION", "us-east-1")
-INDEX_NAME = os.getenv("INDEX_NAME", "image-match")
+# ChromaDB constants
+COLLECTION_NAME = os.getenv("COLLECTION_NAME", "image-match")
+CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "chroma_data")
 
 # Cache for models to avoid reloading
 _clip_model = None
@@ -103,43 +101,38 @@ def generate_clip_embedding(
     
     return result
 
-def init_pinecone():
-    """Initialize Pinecone connection and ensure index exists"""
-    logger.info("Initializing Pinecone connection...")
-    if not PINECONE_API_KEY:
-        logger.error("Pinecone API key not found in environment variables")
-        raise ValueError("Pinecone API key must be set in .env file")
+def init_chromadb():
+    """Initialize ChromaDB connection and ensure collection exists"""
+    logger.info("Initializing ChromaDB connection...")
     
-    # Initialize connection
-    logger.info("Creating Pinecone client")
-    pc = Pinecone(api_key=PINECONE_API_KEY)
+    # Ensure chroma_data directory exists
+    os.makedirs(CHROMA_PERSIST_DIR, exist_ok=True)
     
-    # Check if index exists
+    # Initialize persistent client
+    logger.info(f"Creating ChromaDB client with persistence directory: {CHROMA_PERSIST_DIR}")
+    client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
+    
+    # Get or create collection
     try:
-        # Try to get the index
-        logger.info(f"Attempting to connect to existing index: {INDEX_NAME}")
-        index = pc.Index(INDEX_NAME)
-        logger.info(f"Successfully connected to existing index: {INDEX_NAME}")
-    except Exception as e:
-        # If the index doesn't exist, create it
-        logger.info(f"Index not found, creating new index: {INDEX_NAME}")
-        logger.info(f"Creating index with dimensions=512, metric=cosine, cloud={PINECONE_CLOUD}, region={PINECONE_REGION}")
-        try:
-            pc.create_index(
-                name=INDEX_NAME,
-                dimension=768,  # LongCLIP's embedding size
-                metric="cosine",
-                spec=ServerlessSpec(
-                    cloud=PINECONE_CLOUD,
-                    region=PINECONE_REGION
-                )
+        logger.info(f"Getting or creating collection: {COLLECTION_NAME}")
+        # Check if collection exists in v0.6.0
+        existing_collections = client.list_collections()
+        
+        if COLLECTION_NAME in existing_collections:
+            # Collection exists, get it
+            collection = client.get_collection(name=COLLECTION_NAME)
+            logger.info(f"Using existing collection: {COLLECTION_NAME}")
+        else:
+            # Create new collection
+            collection = client.create_collection(
+                name=COLLECTION_NAME,
+                metadata={"hnsw:space": "cosine"}  # Using cosine similarity like Pinecone
             )
-            logger.info("Index creation request sent, waiting for index to be ready...")
-            # Check if index exists after creation
-            index = pc.Index(INDEX_NAME)
-            logger.info(f"New index created and ready: {INDEX_NAME}")
-        except Exception as create_error:
-            logger.error(f"Error creating index: {create_error}")
-            raise
+            logger.info(f"Created new collection: {COLLECTION_NAME}")
+            
+        logger.info(f"Successfully connected to collection: {COLLECTION_NAME}")
+    except Exception as e:
+        logger.error(f"Error with ChromaDB collection: {e}")
+        raise
     
-    return index 
+    return collection 

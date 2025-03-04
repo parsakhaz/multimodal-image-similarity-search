@@ -1,5 +1,5 @@
 # ImageMatch MVP: A Simple Image Similarity Search Tool
-# Uses CLIP embeddings and Pinecone for storage and search
+# Uses CLIP embeddings and ChromaDB for storage and search
 
 import os
 import uuid
@@ -67,12 +67,10 @@ try:
         load_clip_model,
         remove_background,
         generate_clip_embedding,
-        init_pinecone,
+        init_chromadb,
         CLIP_MODEL_ID,
-        PINECONE_API_KEY,
-        PINECONE_CLOUD,
-        PINECONE_REGION,
-        INDEX_NAME,
+        COLLECTION_NAME,
+        CHROMA_PERSIST_DIR,
         MAX_TOKEN_LENGTH
     )
     
@@ -88,53 +86,48 @@ app = FastAPI(title="ImageMatch MVP")
 logger.info("Setting up directories...")
 os.makedirs("static/uploads", exist_ok=True)
 os.makedirs("static/processed", exist_ok=True)
+os.makedirs(CHROMA_PERSIST_DIR, exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 logger.info("Directories setup complete")
 
-logger.info(f"Using Pinecone config: Cloud={PINECONE_CLOUD}, Region={PINECONE_REGION}, Index={INDEX_NAME}")
+logger.info(f"Using ChromaDB with persistence directory: {CHROMA_PERSIST_DIR}, Collection name: {COLLECTION_NAME}")
+
+# Global ChromaDB collection
+collection = None
 
 # Image metadata storage (in-memory for simplicity)
 # In a production app, you might want to use a proper database for this
 image_metadata = {}
 
-# Load existing metadata from Pinecone
-def load_metadata_from_pinecone():
-    """Load all image metadata from Pinecone to initialize our in-memory cache"""
+# Load existing metadata from ChromaDB
+def load_metadata_from_chromadb():
+    """Load all image metadata from ChromaDB to initialize our in-memory cache"""
+    global collection
     try:
-        logger.info("Loading existing metadata from Pinecone...")
-        index = init_pinecone()
-        # Note: This is not efficient for large collections as it fetches everything
-        # For production, you would implement pagination or a proper database
-        query_response = index.query(
-            vector=[0] * 512,  # Dummy vector for metadata-only query
-            top_k=10000,  # Adjust based on your expected collection size
-            include_metadata=True
+        logger.info("Loading existing metadata from ChromaDB...")
+        # Get all IDs stored in the collection
+        all_ids = collection.get(include=[])["ids"]
+        
+        if not all_ids:
+            logger.info("No existing metadata found in ChromaDB.")
+            return
+            
+        # Fetch all metadata for the ids
+        results = collection.get(
+            ids=all_ids,
+            include=["metadatas"]
         )
         
-        # Extract metadata - handle both old and new API formats
-        try:
-            # Try new API format
-            if hasattr(query_response, 'matches'):
-                for match in query_response.matches:
-                    image_id = match.id
-                    metadata = match.metadata
-                    image_metadata[image_id] = metadata
-            else:
-                # Fall back to old format
-                for match in query_response['matches']:
-                    image_id = match['id']
-                    metadata = match['metadata']
-                    image_metadata[image_id] = metadata
-        except (AttributeError, TypeError):
-            logger.warning("Could not process query response from Pinecone - format may have changed")
+        # Extract metadata
+        if results and "metadatas" in results and results["metadatas"]:
+            for idx, image_id in enumerate(results["ids"]):
+                metadata = results["metadatas"][idx]
+                image_metadata[image_id] = metadata
             
         logger.info(f"Loaded metadata for {len(image_metadata)} existing images")
     except Exception as e:
-        logger.error(f"Failed to load metadata from Pinecone: {e}")
+        logger.error(f"Failed to load metadata from ChromaDB: {e}")
         logger.info("Starting with empty metadata cache")
-
-# Load existing metadata on startup
-load_metadata_from_pinecone()
 
 # Generate a deterministic ID for the image based on its content
 def generate_image_hash(image: Image.Image) -> str:
@@ -144,26 +137,31 @@ def generate_image_hash(image: Image.Image) -> str:
     logger.info(f"Generated perceptual hash for image: {phash}")
     return phash
 
-# Generate a caption for an image using Moondream
+# Generate image caption using Moondream model
 def generate_image_caption(image: Image.Image) -> str:
-    """Generate a caption for the image using Moondream API"""
-    if moondream_model is None:
-        logger.warning("Moondream model not available. Using generic caption.")
+    """Generate a descriptive caption for the image using Moondream"""
+    global moondream_model
+    
+    # Skip if Moondream is not available
+    if not moondream_model:
+        logger.warning("Image captioning skipped - Moondream not available")
         return None
     
     try:
         logger.info("Generating image caption with Moondream")
-        # Encode the image
+        start_time = time.time()
+        
+        # First encode the image
         encoded_image = moondream_model.encode_image(image)
         
-        # Generate the caption
-        result = moondream_model.caption(encoded_image)
-        caption = result["caption"]
+        # Generate caption using Moondream with the encoded image
+        caption_result = moondream_model.caption(encoded_image)
+        caption = caption_result["caption"]
         
-        logger.info(f"Generated caption: {caption}")
+        logger.info(f"Caption generated in {time.time() - start_time:.2f} seconds: {caption}")
         return caption
     except Exception as e:
-        logger.error(f"Error generating image caption: {e}")
+        logger.error(f"Error generating caption: {e}")
         return None
 
 # Process and store image
@@ -173,7 +171,7 @@ def process_image(
     description: Optional[str] = None,
     custom_metadata: Optional[str] = None
 ) -> Tuple[Dict, bool]:
-    """Process image and store in Pinecone
+    """Process image and store in ChromaDB
     
     Returns:
         Tuple containing (metadata, is_new_upload)
@@ -182,25 +180,20 @@ def process_image(
     image_id = generate_image_hash(image)
     
     # Check if this image already exists in our system
-    index = init_pinecone()
-    existing_check = index.fetch([image_id])
+    existing_check = collection.get(
+        ids=[image_id],
+        include=["metadatas"]
+    )
     
     # If the image already exists, return its metadata
-    # Handle both old dictionary format and new FetchResponse object
-    if existing_check:
-        try:
-            # New Pinecone API (FetchResponse object)
-            if hasattr(existing_check, 'vectors') and image_id in existing_check.vectors:
-                logger.info(f"Image with hash {image_id} already exists, skipping processing")
-                return existing_check.vectors[image_id].metadata, False
-        except AttributeError:
-            # Fall back to old dictionary format
-            if existing_check.get('vectors', {}).get(image_id):
-                logger.info(f"Image with hash {image_id} already exists, skipping processing")
-                return existing_check['vectors'][image_id]['metadata'], False
+    if existing_check and existing_check["ids"]:
+        logger.info(f"Image with hash {image_id} already exists, skipping processing")
+        metadata_idx = existing_check["ids"].index(image_id)
+        return existing_check["metadatas"][metadata_idx], False
     
     # Generate caption for the image using Moondream
     generated_caption = generate_image_caption(image)
+    logger.info(f"Generated caption: {generated_caption}")
     
     # Remove background
     try:
@@ -214,21 +207,19 @@ def process_image(
     clean_image.save(processed_path)
     logger.info(f"Processed image saved to {processed_path}")
     
-    # Use generated caption if available and no description provided
-    if not description and generated_caption:
-        description = generated_caption
-    elif not description:
-        # Fall back to filename as simple description if no caption was generated
+    # Only use description provided by user, don't fall back to generated caption
+    if not description:
+        # Fall back to filename as simple description if no description provided
         description = f"An image of {os.path.splitext(filename)[0]}"
     
-    # Prepare custom metadata, appending AI caption if available
+    # Prepare custom metadata, including AI caption if available
     processed_custom_metadata = custom_metadata or ""
     if generated_caption:
         # Add a separator if there's existing custom metadata
         if processed_custom_metadata:
             processed_custom_metadata += "\n\n"
-        # Add just the caption text without the "AI Caption:" prefix
-        processed_custom_metadata += generated_caption
+        # Add the caption text with a label
+        processed_custom_metadata += f"{generated_caption}"
         logger.info(f"Added AI caption to custom metadata: {generated_caption}")
     
     # Generate CLIP embedding
@@ -241,23 +232,20 @@ def process_image(
         "original_filename": filename,
         "processed_path": processed_path,
         "description": description,
-        "ai_caption": generated_caption or "No caption generated",
+        "ai_caption": "",  # Empty string instead of None
         "custom_metadata": processed_custom_metadata,
         "upload_time": datetime.now().isoformat()
     }
     
-    # Store in Pinecone
-    logger.info(f"Storing image {image_id} in Pinecone index")
-    index.upsert(
-        vectors=[
-            {
-                "id": image_id,
-                "values": clip_embedding,
-                "metadata": metadata
-            }
-        ]
+    # Store in ChromaDB
+    logger.info(f"Storing image {image_id} in ChromaDB collection")
+    collection.add(
+        ids=[image_id],
+        embeddings=[clip_embedding],
+        metadatas=[metadata],
+        documents=[description]  # Store description as document for text search
     )
-    logger.info(f"Image {image_id} stored successfully")
+    logger.info(f"Image {image_id} stored successfully with metadata: {metadata}")
     
     # Store metadata locally for quick access
     image_metadata[image_id] = metadata
@@ -269,36 +257,29 @@ def search_similar(
     embedding: np.ndarray,
     limit: int = 10
 ) -> List[Dict]:
-    """Search for similar images by vector similarity using Pinecone"""
+    """Search for similar images by vector similarity using ChromaDB"""
     logger.info(f"Searching for similar images (limit: {limit})")
-    index = init_pinecone()
     
-    # Query the index
+    # Query the collection
     start_time = time.time()
-    results = index.query(
-        vector=embedding.tolist(),
-        top_k=limit,
-        include_metadata=True
+    results = collection.query(
+        query_embeddings=[embedding.tolist()],
+        n_results=limit,
+        include=["metadatas", "distances"]
     )
     logger.info(f"Search completed in {time.time() - start_time:.2f} seconds")
     
-    # Format results - handle both old and new API formats
+    # Format results
     formatted_results = []
-    try:
-        # Try new API format
-        if hasattr(results, 'matches'):
-            for match in results.matches:
-                result = match.metadata
-                result["similarity"] = match.score
+    if results and "distances" in results and results["distances"]:
+        for idx, distance in enumerate(results["distances"][0]):
+            # Check if metadatas exists and is properly indexed
+            if "metadatas" in results and results["metadatas"] and len(results["metadatas"][0]) > idx:
+                # ChromaDB returns metadatas as a list of lists, access it correctly
+                result = results["metadatas"][0][idx].copy()
+                # ChromaDB returns distance (lower is better) so convert to similarity score (higher is better)
+                result["similarity"] = 1.0 - float(distance)
                 formatted_results.append(result)
-        else:
-            # Fall back to old format
-            for match in results["matches"]:
-                result = match["metadata"]
-                result["similarity"] = match["score"]
-                formatted_results.append(result)
-    except (AttributeError, TypeError) as e:
-        logger.error(f"Error processing search results: {e}")
     
     logger.info(f"Found {len(formatted_results)} similar images")
     return formatted_results
@@ -311,12 +292,39 @@ def search_by_text(
     """Search for images using text query"""
     logger.info(f"Text search with query: '{query_text}'")
     
-    # Generate text embedding
-    embeddings = generate_clip_embedding(text=query_text)
-    text_embedding = embeddings["text"][0]
-    
-    # Search using vector similarity
-    return search_similar(text_embedding, limit)
+    # Option 1: Use ChromaDB's text search capabilities
+    try:
+        # Try to use ChromaDB's native text search
+        results = collection.query(
+            query_texts=[query_text],
+            n_results=limit,
+            include=["metadatas", "distances"]
+        )
+        
+        # Format results
+        formatted_results = []
+        if results and "distances" in results and results["distances"]:
+            for idx, distance in enumerate(results["distances"][0]):
+                if idx < len(results["metadatas"]) and results["metadatas"][idx]:
+                    result = results["metadatas"][idx].copy()
+                    # ChromaDB returns distance (lower is better) so convert to similarity score (higher is better)
+                    result["similarity"] = 1.0 - float(distance)
+                    formatted_results.append(result)
+        
+        logger.info(f"Found {len(formatted_results)} images via ChromaDB text search")
+        return formatted_results
+        
+    except Exception as e:
+        # If native text search fails, fall back to embedding-based search
+        logger.warning(f"Native text search failed: {e}. Falling back to embedding-based search.")
+        
+        # Option 2: Generate text embedding and search by vector
+        # Generate text embedding
+        embeddings = generate_clip_embedding(text=query_text)
+        text_embedding = embeddings["text"][0]
+        
+        # Search using vector similarity
+        return search_similar(text_embedding, limit)
 
 # Multimodal search combining text and image
 def search_multimodal(
@@ -372,45 +380,17 @@ def search_multimodal(
 
 # Clear all data (reset function)
 def reset_system():
-    """Reset the entire system by clearing Pinecone index and processed images"""
+    """Reset the entire system by clearing ChromaDB collection and processed images"""
     logger.info("Resetting system - clearing all data")
     
-    # Clear Pinecone index
+    # Clear ChromaDB collection
     try:
-        index = init_pinecone()
+        global collection
+        collection.delete(ids=collection.get(include=[])["ids"])
         
-        # Get all vector IDs
-        query_response = index.query(
-            vector=[0] * 512,  # Dummy vector for metadata-only query
-            top_k=10000,  # Adjust based on your expected collection size
-            include_metadata=True
-        )
-        
-        # Extract all IDs to delete - handle both old and new API formats
-        ids_to_delete = []
-        try:
-            # Try new API format
-            if hasattr(query_response, 'matches'):
-                ids_to_delete = [match.id for match in query_response.matches]
-            else:
-                # Fall back to old format
-                ids_to_delete = [match['id'] for match in query_response['matches']]
-        except (AttributeError, TypeError):
-            logger.warning("Could not process query response from Pinecone - format may have changed")
-        
-        if ids_to_delete:
-            # Delete vectors in batches (Pinecone has limits on batch size)
-            batch_size = 1000
-            for i in range(0, len(ids_to_delete), batch_size):
-                batch = ids_to_delete[i:i+batch_size]
-                index.delete(ids=batch)
-            
-            logger.info(f"Deleted {len(ids_to_delete)} vectors from Pinecone index")
-        else:
-            logger.info("No vectors found in Pinecone index to delete")
-            
+        logger.info(f"Deleted {len(collection.get(include=[])['ids'])} vectors from ChromaDB collection")
     except Exception as e:
-        logger.error(f"Error clearing Pinecone index: {e}")
+        logger.error(f"Error clearing ChromaDB collection: {e}")
         raise
     
     # Clear processed images directory
@@ -432,7 +412,7 @@ def reset_system():
     image_metadata = {}
     logger.info("Cleared in-memory metadata cache")
     
-    return {"success": True, "message": f"System reset complete. Deleted {len(ids_to_delete) if ids_to_delete else 0} vectors and {count if 'count' in locals() else 0} image files."}
+    return {"success": True, "message": f"System reset complete. Deleted {len(collection.get(include=[])['ids']) if collection.get(include=[])['ids'] else 0} vectors and {count if 'count' in locals() else 0} image files."}
 
 # API Routes
 @app.get("/", response_class=HTMLResponse)
@@ -619,15 +599,8 @@ async def upload_image(
     else:
         status_message = '<h1 style="color: orange;">Duplicate Image Detected</h1><p>This image was already in our database. Using existing metadata and embeddings.</p>'
     
-    # Display AI caption section if available
+    # Remove the separate AI caption section - it's now only in custom metadata
     ai_caption_section = ""
-    if result.get('ai_caption') and result['ai_caption'] != "No caption generated":
-        ai_caption_section = f"""
-        <div class="ai-caption">
-            <h3>AI-Generated Caption:</h3>
-            <p style="font-style: italic;">"{result['ai_caption']}"</p>
-        </div>
-        """
     
     # Return HTML response
     return HTMLResponse(f"""
@@ -660,8 +633,6 @@ async def upload_image(
                 <img src="/{result['processed_path']}" alt="Processed image">
             </div>
         </div>
-        
-        {ai_caption_section}
         
         <p><strong>Image ID (hash):</strong> {result['id']}</p>
         <p><strong>Description:</strong> {result['description']}</p>
@@ -1141,9 +1112,9 @@ async def view_all_images():
     """View all stored images with their metadata"""
     logger.info("Retrieving all images from the database")
     
-    # If metadata cache is empty, try to reload from Pinecone
+    # If metadata cache is empty, try to reload from ChromaDB
     if not image_metadata:
-        load_metadata_from_pinecone()
+        load_metadata_from_chromadb()
     
     # Generate HTML for each image
     image_items = []
@@ -1260,7 +1231,7 @@ async def reset_confirm():
             <h2 class="warning">⚠️ WARNING: This action cannot be undone!</h2>
             <p>You are about to reset the entire ImageMatch system. This will:</p>
             <ul>
-                <li>Delete <strong>ALL</strong> vectors from the Pinecone index</li>
+                <li>Delete <strong>ALL</strong> vectors from the ChromaDB collection</li>
                 <li>Delete <strong>ALL</strong> processed images from the server</li>
                 <li>Clear the in-memory metadata cache</li>
             </ul>
@@ -1280,7 +1251,7 @@ async def reset_confirm():
 
 @app.post("/reset-system")
 async def reset_system_route():
-    """Reset the entire system - clear Pinecone index and all processed images"""
+    """Reset the entire system - clear ChromaDB collection and all processed images"""
     logger.info("Reset system request received")
     
     try:
@@ -1369,10 +1340,6 @@ async def edit_metadata_form(image_id: str):
     # Get metadata for the image
     metadata = image_metadata[image_id]
     
-    # Check if AI caption is in custom metadata already
-    ai_caption = metadata.get('ai_caption', '')
-    custom_metadata = metadata.get('custom_metadata', '')
-    
     # Display edit form
     return HTMLResponse(f"""
     <!DOCTYPE html>
@@ -1410,17 +1377,16 @@ async def edit_metadata_form(image_id: str):
             </div>
             
             <form action="/update-metadata/{image_id}" method="post">
-                <label for="description">Description:</label>
-                <input type="text" id="description" name="description" value="{metadata.get('description', '')}" required>
-                
-                <div class="ai-caption">
-                    <label for="ai_caption">AI-Generated Caption:</label>
-                    <input type="text" id="ai_caption" name="ai_caption" value="{metadata.get('ai_caption', 'No caption generated')}">
-                    <p class="note">This caption will be displayed separately and included in the custom metadata field.</p>
+                <div>
+                    <label for="description">Description:</label>
+                    <textarea name="description" id="description" rows="3" required>{metadata['description']}</textarea>
                 </div>
                 
-                <label for="custom_metadata">Custom Metadata:</label>
-                <textarea id="custom_metadata" name="custom_metadata">{metadata.get('custom_metadata', '')}</textarea>
+                <div>
+                    <label for="custom_metadata">Custom Metadata:</label>
+                    <textarea name="custom_metadata" id="custom_metadata" rows="10">{metadata['custom_metadata'] or ''}</textarea>
+                </div>
+                
                 <p class="note">You can add any additional keywords or information. The AI caption will be automatically included.</p>
                 
                 <div>
@@ -1437,33 +1403,15 @@ async def edit_metadata_form(image_id: str):
 async def update_metadata(
     image_id: str, 
     description: str = Form(...), 
-    ai_caption: str = Form(None),
     custom_metadata: str = Form(None)
 ):
     """Update the metadata for an image"""
-    logger.info(f"Updating metadata for image: {image_id}")
+    logger.info(f"Received request to update metadata for image: {image_id}")
     
-    # Check if image exists
+    # Verify that the image exists in our system
     if image_id not in image_metadata:
-        logger.error(f"Image not found: {image_id}")
-        return HTMLResponse(f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Error</title>
-            <style>
-                body {{ font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }}
-                .error {{ color: red; font-weight: bold; }}
-                a {{ display: block; margin: 20px 0; }}
-            </style>
-        </head>
-        <body>
-            <h1 class="error">Error: Image Not Found</h1>
-            <p>The requested image ({image_id}) was not found in the database.</p>
-            <a href="/images">Back to Image List</a>
-        </body>
-        </html>
-        """)
+        logger.error(f"Image ID not found: {image_id}")
+        raise HTTPException(status_code=404, detail="Image not found")
     
     try:
         # Get current metadata
@@ -1472,96 +1420,44 @@ async def update_metadata(
         # Update only the editable fields
         current_metadata['description'] = description
         
-        # Update AI caption if provided
-        if ai_caption is not None:
-            current_metadata['ai_caption'] = ai_caption
-        
-        # Process custom metadata, ensuring AI caption is included
-        processed_custom_metadata = custom_metadata if custom_metadata else ""
-        
-        # Check if AI caption exists and should be included in custom metadata
-        ai_caption_to_use = current_metadata.get('ai_caption', None)
-        if ai_caption_to_use and ai_caption_to_use != "No caption generated":
-            # Don't add AI caption if it's already in the custom metadata
-            if ai_caption_to_use not in processed_custom_metadata:
-                # Add a separator if there's existing custom metadata
-                if processed_custom_metadata:
-                    processed_custom_metadata += "\n\n"
-                processed_custom_metadata += ai_caption_to_use
-                logger.info(f"Added AI caption to custom metadata during update: {ai_caption_to_use}")
-        
-        current_metadata['custom_metadata'] = processed_custom_metadata
-        
-        # Update Pinecone
-        index = init_pinecone()
-        
-        # Get current vector data
-        fetch_response = index.fetch([image_id])
-        vector_data = None
-        
-        # Handle both old and new API formats
-        try:
-            # Try new API format
-            if hasattr(fetch_response, 'vectors'):
-                vector_data = fetch_response.vectors[image_id].values
-            # Fall back to old format
-            else:
-                vector_data = fetch_response['vectors'][image_id]['values']
-        except (AttributeError, TypeError, KeyError) as e:
-            logger.error(f"Error retrieving vector data: {e}")
-            raise Exception("Could not retrieve vector data for updating metadata")
-        
-        # Update vector with new metadata
-        index.upsert(
-            vectors=[
-                {
-                    "id": image_id,
-                    "values": vector_data,
-                    "metadata": current_metadata
-                }
-            ]
+        # Update custom metadata (maintaining any AI caption that might be in it)
+        current_metadata['custom_metadata'] = custom_metadata if custom_metadata else ""
+                
+        # Update metadata in ChromaDB too
+        logger.info(f"Updating metadata in ChromaDB for image: {image_id}")
+        collection.update(
+            ids=[image_id],
+            metadatas=[current_metadata],
+            documents=[description]  # Update document for text search
         )
-        
-        # Update in-memory cache
-        image_metadata[image_id] = current_metadata
-        
         logger.info(f"Metadata updated successfully for image: {image_id}")
         
-        # Return success response
         return HTMLResponse(f"""
         <!DOCTYPE html>
         <html>
         <head>
             <title>Metadata Updated</title>
             <style>
-                body {{ font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }}
-                .success {{ color: green; font-weight: bold; }}
-                .section {{ margin-bottom: 30px; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }}
-                img {{ max-width: 300px; max-height: 300px; }}
+                body {{ font-family: Arial, sans-serif; margin: 0; padding: 20px; }}
+                h1 {{ color: #00cc66; }}
+                .container {{ max-width: 800px; margin: 0 auto; }}
+                img {{ max-width: 100%; border: 1px solid #ddd; }}
+                p {{ margin: 10px 0; }}
                 a {{ display: block; margin: 20px 0; }}
-                .ai-caption {{ background-color: #e6f7ff; padding: 10px; border-radius: 5px; margin: 10px 0; }}
             </style>
         </head>
         <body>
-            <h1 class="success">Metadata Updated Successfully</h1>
-            
-            <div class="section">
-                <p>The metadata for image <strong>{image_id}</strong> has been updated successfully.</p>
-                <p><strong>Description:</strong> {description}</p>
-                
-                <div class="ai-caption">
-                    <p><strong>AI Caption:</strong> {current_metadata.get('ai_caption', 'No caption')}</p>
-                </div>
-                
-                <div>
-                    <a href="/images">Back to Image List</a>
-                    <a href="/edit-metadata/{image_id}">Edit Again</a>
-                </div>
+            <div class="container">
+                <h1>Metadata Updated Successfully</h1>
+                <p>The metadata for image ID: {image_id} has been updated.</p>
+                <p>Description: {description}</p>
+                <img src="/{current_metadata['processed_path']}" alt="{description}" />
+                <a href="/images">Back to Image List</a>
             </div>
         </body>
         </html>
         """)
-        
+    
     except Exception as e:
         logger.error(f"Error updating metadata: {e}")
         return HTMLResponse(f"""
@@ -1570,7 +1466,7 @@ async def update_metadata(
         <head>
             <title>Error</title>
             <style>
-                body {{ font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }}
+                body {{ font-family: Arial, sans-serif; margin: 0; padding: 20px; }}
                 .error {{ color: red; font-weight: bold; }}
                 a {{ display: block; margin: 20px 0; }}
             </style>
@@ -1587,25 +1483,43 @@ async def update_metadata(
 # Initialize database on startup
 @app.on_event("startup")
 def startup_event():
-    # Initialize Pinecone
-    logger.info("Application startup: initializing Pinecone connection")
+    # Initialize ChromaDB
+    logger.info("Application startup: initializing ChromaDB connection")
     try:
-        index = init_pinecone()
-        stats = index.describe_index_stats()
-        logger.info(f"Successfully connected to Pinecone index: {INDEX_NAME}")
-        logger.info(f"Index stats: {stats}")
+        global collection
+        collection = init_chromadb()
+        # ChromaDB doesn't have a direct parallel to describe_index_stats
+        # but we can get some basic info about the collection
+        all_ids = collection.get(include=[])["ids"]
+        logger.info(f"Successfully connected to ChromaDB collection: {COLLECTION_NAME}")
+        logger.info(f"Collection contains {len(all_ids)} vectors")
+        
+        # Load metadata from ChromaDB
+        load_metadata_from_chromadb()
+        
     except Exception as e:
-        logger.error(f"Warning: Could not initialize Pinecone: {str(e)}")
-        logger.error("You'll need to set PINECONE_API_KEY in .env file")
+        logger.error(f"Warning: Could not initialize ChromaDB: {str(e)}")
+        logger.error("Make sure the ChromaDB directory is writable")
     
-    # Verify Moondream API key
+    # Initialize or verify Moondream
+    global moondream_model
     moondream_key = os.getenv("MOONDREAM_API_KEY")
+    
     if moondream_key:
         logger.info(f"✅ Moondream API key found and has length {len(moondream_key)}")
         logger.info(f"Moondream API key begins with: {moondream_key[:8]}...")
+        
         # Check if moondream_model was successfully initialized
         if not moondream_model:
-            logger.warning("⚠️ Moondream API key found but model was not initialized. Check earlier logs for errors.")
+            logger.info("Moondream model not initialized yet, attempting initialization now...")
+            try:
+                import moondream as md
+                moondream_model = md.vl(api_key=moondream_key)
+                logger.info("✅ Moondream model successfully initialized during startup")
+            except Exception as e:
+                logger.error(f"⚠️ Failed to initialize Moondream model during startup: {e}")
+        else:
+            logger.info("✅ Moondream model was already initialized")
     else:
         logger.warning("""
         ---------------------------------------------------------------------------------
@@ -1613,7 +1527,7 @@ def startup_event():
         AI image captioning will be disabled.
         
         To enable automatic image captioning:
-        1. Get an API key from Moondream Cloud (https://moonshot.ai/)
+        1. Get an API key from Moondream Cloud (https://console.moondream.ai/)
         2. Add MOONDREAM_API_KEY=your-api-key to your .env file
         ---------------------------------------------------------------------------------
         """)
