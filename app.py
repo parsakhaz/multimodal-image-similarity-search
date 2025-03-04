@@ -644,10 +644,21 @@ def home():
             .new-feature {{ background-color: #f0fff0; border-left: 4px solid #00cc66; padding-left: 15px; }}
             .ai-feature {{ background-color: #e6f7ff; border-left: 4px solid #0099ff; padding-left: 15px; }}
             .filter-options {{ margin-top: 10px; padding: 10px; background-color: #f5f5f5; border-radius: 5px; }}
+            .button-link {{ display: inline-block; background-color: #4361ee; color: white; padding: 10px 15px; margin: 10px 10px 10px 0; text-decoration: none; border-radius: 5px; }}
+            .button-link:hover {{ background-color: #3f37c9; }}
+            .app-links {{ margin: 20px 0; }}
         </style>
     </head>
     <body>
         <h1>ImageMatch</h1>
+        
+        <div class="new-feature app-links">
+            <h3>New UI Pages 🎉</h3>
+            <p>Try our improved user interfaces:</p>
+            <a href="/app" class="button-link">New Search UI</a>
+            <a href="/manage" class="button-link">Manage Filters & Uploads</a>
+            <a href="/images" class="button-link">Browse All Images</a>
+        </div>
         
         <div class="section highlight" style="background-color: #fff0f5; border-left: 4px solid #ff69b4;">
             <h2>New Dynamic UI Available!</h2>
@@ -765,7 +776,8 @@ def home():
 async def upload_image(
     file: UploadFile = File(...),
     description: str = Form(None),
-    custom_metadata: str = Form(None)
+    custom_metadata: str = Form(None),
+    request: Request = None
 ):
     """Upload and process an image"""
     logger.info(f"Upload request received for file: {file.filename}")
@@ -822,6 +834,21 @@ async def upload_image(
     result, is_new_upload = process_image(image, file.filename, description, custom_metadata)
     logger.info(f"Image processed successfully: {result['id']}")
     
+    # Check if request is AJAX (from the manage page)
+    is_ajax = request and request.headers.get('accept') == 'application/json'
+    
+    # Return JSON response for AJAX requests
+    if is_ajax:
+        return {
+            "success": True,
+            "is_new_upload": is_new_upload,
+            "id": result['id'],
+            "description": result['description'],
+            "original_path": original_path,
+            "processed_path": result['processed_path'],
+            "custom_metadata": result['custom_metadata']
+        }
+    
     # Different status message based on whether the image was new or a duplicate
     status_message = ""
     if is_new_upload:
@@ -832,7 +859,7 @@ async def upload_image(
     # Remove the separate AI caption section - it's now only in custom metadata
     ai_caption_section = ""
     
-    # Return HTML response
+    # Return HTML response for regular submissions
     return HTMLResponse(f"""
     <!DOCTYPE html>
     <html>
@@ -1974,6 +2001,12 @@ async def main_app(request: Request):
     """Serve the new dynamic UI using htmx"""
     filters = load_filters()
     return templates.TemplateResponse("main.html", {"request": request, "filters": filters})
+
+@app.get("/manage", response_class=HTMLResponse)
+async def manage_app(request: Request):
+    """Serve the page for managing filters and uploads"""
+    filters = load_filters()
+    return templates.TemplateResponse("manage.html", {"request": request, "filters": filters})
 
 @app.post("/search")
 async def unified_search(
