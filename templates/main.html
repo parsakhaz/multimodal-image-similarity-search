@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ImageMatch</title>
+    <script src="/static/js/htmx.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            padding: 20px; 
+        }
+        h1 { color: #333; }
+        #search-form {
+            background-color: #f5f5f5;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+        #weight-display {
+            display: inline-block;
+            width: 40px;
+            text-align: center;
+        }
+        #results { 
+            display: flex; 
+            flex-wrap: wrap; 
+            margin-top: 20px; 
+        }
+        .result { 
+            margin: 10px; 
+            text-align: center; 
+            width: 220px; 
+            border: 1px solid #ddd; 
+            padding: 10px; 
+            border-radius: 3px;
+        }
+        img { 
+            max-width: 200px; 
+            max-height: 200px; 
+        }
+        .similarity { 
+            font-weight: bold; 
+            color: #4CAF50; 
+        }
+        .filter-results { 
+            text-align: left; 
+            margin-top: 10px; 
+            font-size: 0.9em; 
+            background-color: #f5f5f5; 
+            padding: 5px; 
+        }
+        .filter-results ul { 
+            padding-left: 20px; 
+            margin: 5px 0; 
+        }
+        #filters-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .filter-checkbox {
+            display: inline-block;
+            margin-right: 15px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            text-align: center;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 20px;
+            border-radius: 5px;
+            display: none;
+            z-index: 1000;
+        }
+        .htmx-indicator {
+            display: none;
+        }
+        .htmx-request .htmx-indicator {
+            display: block;
+        }
+        .query-image {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .query-image img {
+            max-width: 300px;
+            max-height: 300px;
+        }
+    </style>
+</head>
+<body>
+    <h1>ImageMatch</h1>
+
+    <!-- Unified Search Form -->
+    <form id="search-form" hx-post="/search" hx-target="#results" hx-indicator="#loading" hx-encoding="multipart/form-data">
+        <!-- Text Search -->
+        <div class="form-group">
+            <label for="query">Search by Text:</label>
+            <input type="text" id="query" name="query" placeholder="Type your search query here...">
+        </div>
+
+        <!-- Image Upload -->
+        <div class="form-group">
+            <label for="file">Search by Image:</label>
+            <input type="file" id="file" name="file" accept="image/*">
+        </div>
+
+        <!-- Multimodal Weight -->
+        <div class="form-group">
+            <label for="weight_image">Text-to-Image Balance: <span id="weight-display">0.5</span></label>
+            <input type="range" id="weight_image" name="weight_image" min="0" max="1" step="0.1" value="0.5" 
+                   oninput="document.getElementById('weight-display').textContent = this.value">
+        </div>
+
+        <!-- Filters -->
+        <div class="form-group">
+            <h3>Filters</h3>
+            <div id="filters-container">
+                {% for filter in filters %}
+                <label class="filter-checkbox">
+                    <input type="checkbox" name="filters" value="{{ filter }}">
+                    {{ filter }}
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <button type="submit">Search</button>
+    </form>
+
+    <!-- Results Area -->
+    <div id="results">
+        <p>Perform a search to see results.</p>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div id="loading" class="htmx-indicator">
+        <div style="text-align: center;">
+            <div style="font-size: 24px; margin-bottom: 10px;">Loading...</div>
+            <div id="loading-message">Processing your search request</div>
+        </div>
+    </div>
+
+    <script>
+        // Update loading message for multimodal searches
+        document.getElementById('search-form').addEventListener('submit', function(event) {
+            const hasImage = document.getElementById('file').files.length > 0;
+            const hasText = document.getElementById('query').value.trim() !== '';
+            
+            if (hasImage && hasText) {
+                document.getElementById('loading-message').textContent = 
+                    'Processing multimodal search (this may take longer)...';
+            } else {
+                document.getElementById('loading-message').textContent = 
+                    'Processing your search request...';
+            }
+        });
+    </script>
+</body>
+</html> 

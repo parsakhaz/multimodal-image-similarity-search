@@ -26,12 +26,12 @@ try:
     import numpy as np
     from PIL import Image
     import torch
-    from fastapi import FastAPI, File, Form, UploadFile, HTTPException
+    from fastapi import FastAPI, File, Form, UploadFile, Request, BackgroundTasks, HTTPException, Query, Depends
     from fastapi.responses import HTMLResponse, RedirectResponse
     from fastapi.staticfiles import StaticFiles
     import uvicorn
     from dotenv import load_dotenv
-    from fastapi import BackgroundTasks
+    from fastapi.templating import Jinja2Templates
     
     # Load environment variables FIRST - before any API key access
     logger.info("Loading environment variables...")
@@ -648,6 +648,12 @@ def home():
     </head>
     <body>
         <h1>ImageMatch</h1>
+        
+        <div class="section highlight" style="background-color: #fff0f5; border-left: 4px solid #ff69b4;">
+            <h2>New Dynamic UI Available!</h2>
+            <p>Try our new dynamic interface with real-time search and filters - no page reloads required!</p>
+            <p><a href="/app" style="display: inline-block; background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">Launch New UI</a></p>
+        </div>
         
         <div class="section ai-feature">
             <h2>Automatic Image Captioning</h2>
@@ -1959,6 +1965,155 @@ def startup_event():
         2. Add MOONDREAM_API_KEY=your-api-key to your .env file
         ---------------------------------------------------------------------------------
         """)
+
+# Add this near other global variables after app initialization
+templates = Jinja2Templates(directory="templates")
+
+@app.get("/app", response_class=HTMLResponse)
+async def main_app(request: Request):
+    """Serve the new dynamic UI using htmx"""
+    filters = load_filters()
+    return templates.TemplateResponse("main.html", {"request": request, "filters": filters})
+
+@app.post("/search")
+async def unified_search(
+    file: UploadFile = File(None),
+    query: str = Form(None),
+    weight_image: float = Form(0.5),
+    filters: List[str] = Form(None)
+):
+    """Unified search endpoint that handles all search types (image, text, multimodal)
+    and returns partial HTML for htmx to update the UI."""
+    logger.info(f"Unified search request received. Query: '{query}', File: {file.filename if file else None}")
+    if filters:
+        logger.info(f"Filters specified: {filters}")
+    
+    filters = filters or []
+    results = []
+    query_image_html = ""
+    
+    # Determine the type of search based on provided parameters
+    if file and not query:
+        # Image-only search
+        content = await file.read()
+        image = Image.open(BytesIO(content))
+        
+        # Handle image mode conversion if needed
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        
+        # Remove background (optional for search)
+        try:
+            clean_image = remove_background(image)
+        except Exception as e:
+            logger.warning(f"Background removal failed, using original image: {str(e)}")
+            clean_image = image
+        
+        # Generate embedding and search
+        embeddings = generate_clip_embedding(clean_image)
+        results = search_similar(embeddings["image"][0])
+        
+        # Create HTML for the query image display
+        query_image_html = f"""
+        <div class="query-image">
+            <h3>Query Image</h3>
+            <img src="data:image/jpeg;base64,{base64.b64encode(content).decode()}">
+        </div>
+        """
+        
+    elif query and not file:
+        # Text-only search
+        results = search_by_text(query)
+        
+    elif file and query:
+        # Multimodal search (combine image and text)
+        content = await file.read()
+        image = Image.open(BytesIO(content))
+        
+        # Handle image mode conversion if needed
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        
+        # Weight validation
+        weight_image = min(max(weight_image, 0.0), 1.0)  # Clamp between 0 and 1
+        
+        # Perform multimodal search
+        results = search_multimodal(image, query, weight_image)
+        
+        # Create HTML for the query image display
+        query_image_html = f"""
+        <div class="query-image">
+            <h3>Query Image</h3>
+            <img src="data:image/jpeg;base64,{base64.b64encode(content).decode()}">
+            <p>Text Query: "{query}" (Image Weight: {weight_image})</p>
+        </div>
+        """
+    else:
+        # No valid search parameters
+        return HTMLResponse("<p>Please provide an image, text, or both to search.</p>")
+    
+    # Filter results based on selected filters
+    if filters:
+        logger.info(f"Filtering results based on {len(filters)} filters")
+        filtered_results = []
+        for r in results:
+            # Get filter results from JSON string
+            filter_results = {}
+            if "filter_results_json" in r:
+                try:
+                    filter_results = json.loads(r["filter_results_json"])
+                except (json.JSONDecodeError, TypeError):
+                    logger.warning(f"Error parsing filter_results_json for image {r['id']}")
+            
+            # Check if this result matches all the selected filters
+            if all(filter_results.get(f, "").lower().strip() == "yes" for f in filters):
+                filtered_results.append(r)
+        
+        # Update results with filtered version
+        logger.info(f"Results filtered: {len(results)} -> {len(filtered_results)}")
+        results = filtered_results
+    
+    # Format results for display
+    result_html = ""
+    if not results:
+        result_html = "<p>No matching images found. Try different search criteria or filters.</p>"
+    else:
+        for r in results:
+            similarity_pct = f"{r['similarity'] * 100:.1f}%"
+            
+            # Add filter results to display if any filters were applied
+            filter_display = ""
+            if filters and "filter_results_json" in r:
+                try:
+                    filter_results = json.loads(r["filter_results_json"])
+                    filter_display = "<div class='filter-results'><h4>Filter Results:</h4><ul>"
+                    for f in filters:
+                        answer = filter_results.get(f, "unknown")
+                        if isinstance(answer, str):
+                            answer = answer.strip()
+                        display_text = format_filter_for_display(f)
+                        filter_display += f"<li><strong>{display_text}</strong>: {answer}</li>"
+                    filter_display += "</ul></div>"
+                except (json.JSONDecodeError, TypeError):
+                    logger.warning(f"Error parsing filter_results_json for display, image {r['id']}")
+            
+            result_html += f"""
+            <div class="result">
+                <img src="/{r['processed_path']}" alt="{r['description']}">
+                <p class="similarity">Similarity: {similarity_pct}</p>
+                <p>{r['description']}</p>
+                {filter_display}
+            </div>
+            """
+    
+    # Combine query image and results
+    final_html = f"""
+    {query_image_html}
+    {f'<div class="applied-filters"><h3>Applied Filters:</h3><ul>' + ''.join([f'<li>{f}</li>' for f in filters]) + '</ul></div>' if filters else ''}
+    {result_html}
+    """
+    
+    return HTMLResponse(final_html)
 
 # Run the application
 if __name__ == "__main__":
