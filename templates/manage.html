@@ -251,6 +251,29 @@
                 padding: 20px;
             }
         }
+        
+        .image-popup .caption {
+            margin-top: 0.5rem;
+            color: #666;
+        }
+        
+        /* Checkbox styling */
+        .checkbox-wrapper {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        
+        .checkbox-wrapper input[type="checkbox"] {
+            margin-right: 0.5rem;
+        }
+        
+        .checkbox-wrapper label {
+            margin: 0;
+            font-weight: normal;
+        }
+        
+        /* Image container styling */
     </style>
 </head>
 <body>
@@ -311,6 +334,13 @@
                 <div class="form-group">
                     <label for="custom_metadata">Custom Metadata (Optional)</label>
                     <textarea id="custom_metadata" name="custom_metadata" rows="3" placeholder="Enter any additional metadata"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="remove_bg" name="remove_bg" value="true">
+                        <label for="remove_bg">Remove background</label>
+                    </div>
                 </div>
                 
                 <div class="form-group">

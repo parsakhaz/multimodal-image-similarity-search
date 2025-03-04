@@ -175,7 +175,8 @@ def process_image(
     image: Image.Image,
     filename: str,
     description: Optional[str] = None,
-    custom_metadata: Optional[str] = None
+    custom_metadata: Optional[str] = None,
+    remove_bg: bool = False
 ) -> Tuple[Dict, bool]:
     """Process image and store in ChromaDB
     
@@ -208,12 +209,17 @@ def process_image(
         torch.save(encoded_image, encoded_path)
         logger.info(f"Encoded image saved to {encoded_path}")
     
-    # Remove background
-    try:
-        clean_image = remove_background(image)
-    except Exception as e:
-        logger.error(f"Background removal error: {e}")
-        clean_image = image
+    # Remove background if requested
+    clean_image = image
+    if remove_bg:
+        try:
+            logger.info(f"Removing background for image {image_id}")
+            clean_image = remove_background(image)
+        except Exception as e:
+            logger.error(f"Background removal error: {e}")
+            clean_image = image
+    else:
+        logger.info(f"Skipping background removal for image {image_id}")
     
     # Save processed image
     processed_path = f"static/processed/{image_id}.png"
@@ -784,6 +790,7 @@ async def upload_image(
     file: UploadFile = File(...),
     description: str = Form(None),
     custom_metadata: str = Form(None),
+    remove_bg: bool = Form(False),
     request: Request = None
 ):
     """Upload and process an image"""
@@ -838,7 +845,7 @@ async def upload_image(
     logger.info(f"Original image saved to {original_path}")
     
     # Process image
-    result, is_new_upload = process_image(image, file.filename, description, custom_metadata)
+    result, is_new_upload = process_image(image, file.filename, description, custom_metadata, remove_bg)
     logger.info(f"Image processed successfully: {result['id']}")
     
     # Check if request is AJAX (from the manage page)
@@ -1202,7 +1209,7 @@ async def upload_sample_images():
                 custom_metadata = f"Sample image loaded from {file_path}. This is an automatically processed sample."
                 
                 # AI caption will automatically be added to custom_metadata in the process_image function
-                result, is_new_upload = process_image(image, filename, description, custom_metadata)
+                result, is_new_upload = process_image(image, filename, description, custom_metadata, remove_bg=False)
                 
                 if is_new_upload:
                     uploaded_new.append(f"{filename} - {result['id']} - Caption: {result.get('ai_caption', 'None')}")
