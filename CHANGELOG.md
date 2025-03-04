@@ -2,6 +2,36 @@
 
 All notable changes to the ImageMatch project will be documented in this file.
 
+## [2.2.0] - 2024-03-07
+
+Added AI-powered dynamic filters feature for attribute-based image filtering.
+
+### Added
+- Dynamic filters system using Moondream model for attribute detection
+- Custom filter creation and management interface
+- Ability to apply filters to all existing images in one operation
+- Filter display in search results showing which attributes match
+- JSON-based storage of filter results for efficient querying
+- Automatic filter application for newly uploaded images
+
+### Changed
+- Enhanced search pages to support filter-based refinement
+- Modified metadata structure to include JSON-serialized filter results
+- Updated image processing pipeline to handle filter applications
+- Improved search result display to show filter results for matched images
+
+### Fixed
+- Issue with whitespace in model responses affecting filter matching
+- Compatibility with PyTorch 2.6+ for loading encoded images (weights_only parameter)
+- JSON serialization for filter results to comply with ChromaDB metadata requirements
+- Consistent whitespace handling across filter application and search
+
+### Technical
+- Implemented JSON serialization for complex filter data in ChromaDB metadata
+- Added filter loading and saving functionality with proper error handling
+- Enhanced logging for filter operations and result tracking
+- Modified PyTorch loading parameters to maintain backward compatibility
+
 ## [2.1.0] - 2024-03-05
 
 Performance optimization with encoded image storage.

@@ -13,6 +13,7 @@ A powerful image similarity search application that leverages CLIP embeddings an
   - Image-based similarity search
   - Natural language text queries
   - Multimodal search combining image and text inputs
+  - Dynamic filters for attribute-based filtering
   - Fast vector similarity search via ChromaDB
 
 - **Intelligent Data Management**:
@@ -118,16 +119,19 @@ Access the application at <http://localhost:8000>
    - Upload a query image
    - View results ranked by similarity
    - Examine similarity scores
+   - Apply dynamic filters to refine results
 
 2. **Text Search**:
    - Enter natural language descriptions
    - Find images matching semantic concepts
    - Use descriptive phrases for better results
+   - Combine with dynamic filters for precise results
 
 3. **Multimodal Search**:
    - Combine image and text inputs
    - Adjust weights between visual and textual similarity
    - Fine-tune results based on your needs
+   - Apply dynamic filters to narrow down results
    - **Note**: Uses LongCLIP with extended token support (248 tokens)
 
 ### System Management
@@ -182,6 +186,16 @@ Access the application at <http://localhost:8000>
 - Encoded tensors stored as `.pt` files in `static/encoded` directory
 - Automatically managed alongside other image data
 - Significantly improves performance for multimodal operations
+
+### Dynamic Filters System
+
+- Define custom queries that can be applied to all images
+- Queries are processed by Moondream model to generate yes/no answers
+- Results are stored as metadata and used during search operations
+- Filter results displayed alongside search results for transparency
+- Filters automatically applied to newly uploaded images
+- Ability to process filters on all existing images
+- JSON-based storage of filter results for efficient querying
 
 ### Utility Scripts
 

@@ -27,10 +27,11 @@ try:
     from PIL import Image
     import torch
     from fastapi import FastAPI, File, Form, UploadFile, HTTPException
-    from fastapi.responses import HTMLResponse
+    from fastapi.responses import HTMLResponse, RedirectResponse
     from fastapi.staticfiles import StaticFiles
     import uvicorn
     from dotenv import load_dotenv
+    from fastapi import BackgroundTasks
     
     # Load environment variables FIRST - before any API key access
     logger.info("Loading environment variables...")
@@ -249,6 +250,27 @@ def process_image(
         "upload_time": datetime.now().isoformat()
     }
     
+    # Apply all existing filters to the new image
+    if encoded_image is not None and moondream_model is not None:
+        filters = load_filters()
+        if filters:
+            logger.info(f"Applying {len(filters)} filters to new image {image_id}")
+            filter_results = {}
+            for filter_query in filters:
+                try:
+                    logger.info(f"Applying filter '{filter_query}' to new image")
+                    answer = moondream_model.query(encoded_image, filter_query)["answer"]
+                    logger.info(f"Filter result: {answer}")
+                    filter_results[filter_query] = answer.strip() if isinstance(answer, str) else answer
+                except Exception as e:
+                    logger.error(f"Error applying filter '{filter_query}': {e}")
+                    filter_results[filter_query] = "error"
+            
+            # Add filter results to metadata as a JSON string
+            if filter_results:
+                metadata["filter_results_json"] = json.dumps(filter_results)
+                logger.info(f"Added {len(filter_results)} filter results to metadata as JSON")
+    
     # Store in ChromaDB
     logger.info(f"Storing image {image_id} in ChromaDB collection")
     collection.add(
@@ -405,7 +427,9 @@ def load_encoded_image(image_id: str) -> Optional[Any]:
         encoded_path = f"static/encoded/{image_id}.pt"
         if os.path.exists(encoded_path):
             logger.info(f"Loading encoded image from {encoded_path}")
-            return torch.load(encoded_path)
+            # Explicitly set weights_only=False to allow loading custom classes
+            # This is safe since we generated these files ourselves
+            return torch.load(encoded_path, weights_only=False)
         else:
             logger.warning(f"Encoded image not found for {image_id}")
             return None
@@ -413,74 +437,169 @@ def load_encoded_image(image_id: str) -> Optional[Any]:
         logger.error(f"Error loading encoded image: {e}")
         return None
 
+def load_filters() -> List[str]:
+    """Load the list of dynamic filters from the filters.json file
+    
+    Returns:
+        List of filter queries
+    """
+    try:
+        if os.path.exists("filters.json"):
+            logger.info("Loading filters from filters.json")
+            with open("filters.json", "r") as f:
+                return json.load(f)
+        else:
+            logger.info("filters.json not found, initializing empty filters list")
+            return []
+    except Exception as e:
+        logger.error(f"Error loading filters: {e}")
+        return []
+
+def save_filters(filters: List[str]) -> None:
+    """Save the list of dynamic filters to the filters.json file
+    
+    Args:
+        filters: List of filter queries to save
+    """
+    try:
+        logger.info(f"Saving {len(filters)} filters to filters.json")
+        with open("filters.json", "w") as f:
+            json.dump(filters, f)
+        logger.info("Filters saved successfully")
+    except Exception as e:
+        logger.error(f"Error saving filters: {e}")
+
+def process_filter_on_all_images(filter_query: str) -> None:
+    """Process a single filter query on all existing images
+    
+    Args:
+        filter_query: The filter query to process
+    """
+    global moondream_model
+    
+    if not moondream_model:
+        logger.warning("Cannot process filter - Moondream not available")
+        return
+    
+    logger.info(f"Processing filter query '{filter_query}' on all images")
+    all_ids = collection.get(include=[])["ids"]
+    logger.info(f"Found {len(all_ids)} images to process")
+    
+    for image_id in all_ids:
+        try:
+            # Load the encoded image
+            encoded_image = load_encoded_image(image_id)
+            if encoded_image is not None:
+                # Query the model
+                logger.info(f"Applying filter '{filter_query}' to image {image_id}")
+                answer = moondream_model.query(encoded_image, filter_query)["answer"]
+                logger.info(f"Filter result for {image_id}: {answer}")
+                
+                # Update the metadata
+                metadata = collection.get(ids=[image_id], include=["metadatas"])["metadatas"][0]
+                
+                # Get existing filter results or create empty dict
+                filter_results = {}
+                if "filter_results_json" in metadata:
+                    try:
+                        filter_results = json.loads(metadata["filter_results_json"])
+                    except json.JSONDecodeError:
+                        logger.error(f"Error parsing existing filter_results_json for {image_id}")
+                
+                # Add new filter result (stripping whitespace for consistent comparison)
+                filter_results[filter_query] = answer.strip() if isinstance(answer, str) else answer
+                
+                # Store back as JSON string
+                metadata["filter_results_json"] = json.dumps(filter_results)
+                
+                # Update ChromaDB
+                collection.update(ids=[image_id], metadatas=[metadata])
+                
+                # Update local cache
+                if image_id in image_metadata:
+                    image_metadata[image_id] = metadata
+            else:
+                logger.warning(f"Skipping filter processing for {image_id} - encoded image not found")
+        except Exception as e:
+            logger.error(f"Error processing filter for image {image_id}: {e}")
+    
+    logger.info(f"Completed processing filter '{filter_query}' on all images")
+
 # Clear all data (reset function)
 def reset_system():
-    """Reset the entire system by clearing ChromaDB collection and processed images"""
-    logger.info("Resetting system - clearing all data")
-    
-    # Clear ChromaDB collection
-    try:
-        global collection
-        collection.delete(ids=collection.get(include=[])["ids"])
-        
-        logger.info(f"Deleted {len(collection.get(include=[])['ids'])} vectors from ChromaDB collection")
-    except Exception as e:
-        logger.error(f"Error clearing ChromaDB collection: {e}")
-        raise
-    
-    # Clear processed images directory
-    try:
-        processed_dir = "static/processed"
-        count = 0
-        for filename in os.listdir(processed_dir):
-            file_path = os.path.join(processed_dir, filename)
-            if os.path.isfile(file_path):
-                os.remove(file_path)
-                count += 1
-        logger.info(f"Deleted {count} processed image files")
-        
-        # Clear encoded images directory
-        encoded_dir = "static/encoded"
-        encoded_count = 0
-        for filename in os.listdir(encoded_dir):
-            file_path = os.path.join(encoded_dir, filename)
-            if os.path.isfile(file_path):
-                os.remove(file_path)
-                encoded_count += 1
-        logger.info(f"Deleted {encoded_count} encoded image files")
-    except Exception as e:
-        logger.error(f"Error clearing processed or encoded images: {e}")
-        raise
-    
-    # Clear in-memory metadata cache
+    """Clear all data including stored images and ChromaDB collection"""
+    global collection
     global image_metadata
-    image_metadata = {}
-    logger.info("Cleared in-memory metadata cache")
     
-    return {"success": True, "message": f"System reset complete. Deleted {len(collection.get(include=[])['ids']) if collection.get(include=[])['ids'] else 0} vectors and {count if 'count' in locals() else 0} image files."}
+    logger.info("Resetting system (clearing all data)")
+    
+    try:
+        # Reset ChromaDB collection
+        collection.delete(where={})
+        logger.info("ChromaDB collection has been cleared")
+        
+        # Reset local cache
+        image_metadata = {}
+        
+        # Delete all processed images
+        processed_dir = "static/processed"
+        for f in os.listdir(processed_dir):
+            if f != ".gitkeep":  # Keep the .gitkeep file
+                os.remove(os.path.join(processed_dir, f))
+        logger.info("Processed images directory has been cleared")
+        
+        # Delete all encoded images
+        encoded_dir = "static/encoded"
+        for f in os.listdir(encoded_dir):
+            if f != ".gitkeep":  # Keep the .gitkeep file
+                os.remove(os.path.join(encoded_dir, f))
+        logger.info("Encoded images directory has been cleared")
+        
+        # Reset filters.json to empty array
+        save_filters([])
+        logger.info("Filters have been reset")
+        
+        return True
+    except Exception as e:
+        logger.error(f"Error during system reset: {e}")
+        return False
 
 # API Routes
 @app.get("/", response_class=HTMLResponse)
 def home():
     """Simple HTML interface"""
     logger.info("Home page accessed")
-    return """
+    
+    # Load existing filters
+    filters = load_filters()
+    filter_list_html = "<ul>" + "".join([f"<li>{f}</li>" for f in filters]) + "</ul>" if filters else "<p>No filters defined yet</p>"
+    
+    # Create filter checkboxes for search forms
+    filter_checkboxes = ""
+    if filters:
+        filter_checkboxes = "<div class='filter-options'><h4>Apply Filters</h4>"
+        for f in filters:
+            filter_checkboxes += f'<label><input type="checkbox" name="filters" value="{f}"> {f}</label><br>'
+        filter_checkboxes += "</div>"
+    
+    return f"""
     <!DOCTYPE html>
     <html>
     <head>
         <title>ImageMatch MVP</title>
         <style>
-            body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-            .section { margin-bottom: 30px; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
-            img { max-width: 150px; max-height: 150px; margin: 5px; border: 1px solid #ddd; }
-            .result-item { margin-bottom: 20px; }
-            input, textarea, button { margin: 10px 0; }
-            textarea { width: 100%; height: 100px; }
-            .search-options { display: flex; gap: 20px; }
-            .search-box { flex: 1; }
-            .highlight { background-color: #f0f7ff; border-left: 4px solid #0066cc; padding-left: 15px; }
-            .new-feature { background-color: #f0fff0; border-left: 4px solid #00cc66; padding-left: 15px; }
-            .ai-feature { background-color: #e6f7ff; border-left: 4px solid #0099ff; padding-left: 15px; }
+            body {{ font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }}
+            .section {{ margin-bottom: 30px; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }}
+            img {{ max-width: 150px; max-height: 150px; margin: 5px; border: 1px solid #ddd; }}
+            .result-item {{ margin-bottom: 20px; }}
+            input, textarea, button {{ margin: 10px 0; }}
+            textarea {{ width: 100%; height: 100px; }}
+            .search-options {{ display: flex; gap: 20px; }}
+            .search-box {{ flex: 1; }}
+            .highlight {{ background-color: #f0f7ff; border-left: 4px solid #0066cc; padding-left: 15px; }}
+            .new-feature {{ background-color: #f0fff0; border-left: 4px solid #00cc66; padding-left: 15px; }}
+            .ai-feature {{ background-color: #e6f7ff; border-left: 4px solid #0099ff; padding-left: 15px; }}
+            .filter-options {{ margin-top: 10px; padding: 10px; background-color: #f5f5f5; border-radius: 5px; }}
         </style>
     </head>
     <body>
@@ -489,6 +608,20 @@ def home():
         <div class="section ai-feature">
             <h2>Automatic Image Captioning</h2>
             <p>We automatically generate descriptive captions for your images using Moondream for better search results.</p>
+        </div>
+        
+        <div class="section new-feature">
+            <h2>Dynamic Filters</h2>
+            <p>Add custom filters to classify images using AI. Filters will be applied to all existing and future images.</p>
+            
+            <form action="/add-filter" method="post">
+                <input type="text" name="filter_query" placeholder="Enter new filter query (e.g., 'is there red in this image?')" required style="width: 80%;">
+                <button type="submit">Add Filter</button>
+            </form>
+            
+            <h3>Existing Filters</h3>
+            {filter_list_html}
+            <p><small>Note: New filters will be processed in the background on all existing images.</small></p>
         </div>
         
         <div class="section">
@@ -511,6 +644,7 @@ def home():
                     <p>Upload an image to find visually similar images</p>
                     <form action="/search/image" method="post" enctype="multipart/form-data">
                         <input type="file" name="file" accept="image/*" required><br>
+                        {filter_checkboxes}
                         <button type="submit">Search by Image</button>
                     </form>
                 </div>
@@ -520,6 +654,7 @@ def home():
                     <p>Enter keywords to find semantically matching images</p>
                     <form action="/search/text" method="get">
                         <input type="text" name="query" placeholder="e.g., red drill, cat, landscape" required><br>
+                        {filter_checkboxes}
                         <button type="submit">Search by Text</button>
                     </form>
                 </div>
@@ -552,6 +687,8 @@ def home():
                     </div>
                 </div>
                 
+                {filter_checkboxes}
+                
                 <button type="submit" style="margin-top: 20px; padding: 10px 20px; background-color: #00cc66; color: white; border: none; border-radius: 4px;">Search with Both</button>
             </form>
         </div>
@@ -568,9 +705,7 @@ def home():
         </div>
         
         <div id="results" class="section">
-            <h2>Getting Started</h2>
-            <p>To quickly populate the system with sample images:</p>
-            <p><a href="/upload-samples">Click here to upload all sample images from the /images directory</a></p>
+            <!-- Search results will be displayed here -->
         </div>
     </body>
     </html>
@@ -693,9 +828,14 @@ async def upload_image(
     """)
 
 @app.post("/search/image")
-async def search_by_image(file: UploadFile = File(...)):
+async def search_by_image(
+    file: UploadFile = File(...),
+    filters: List[str] = Form(None)
+):
     """Search for similar images using an uploaded image"""
     logger.info(f"Image search request received with file: {file.filename}")
+    if filters:
+        logger.info(f"Filters specified: {filters}")
     
     # Read file content
     content = await file.read()
@@ -752,17 +892,60 @@ async def search_by_image(file: UploadFile = File(...)):
     # Search for similar images
     results = search_similar(embeddings["image"][0])
     
+    # Filter results based on selected filters
+    if filters:
+        logger.info(f"Filtering results based on {len(filters)} filters")
+        filtered_results = []
+        for r in results:
+            # Get filter results from JSON string
+            filter_results = {}
+            if "filter_results_json" in r:
+                try:
+                    filter_results = json.loads(r["filter_results_json"])
+                except (json.JSONDecodeError, TypeError):
+                    logger.warning(f"Error parsing filter_results_json for image {r['id']}")
+            
+            # Check if this result matches all the selected filters
+            if all(filter_results.get(f, "").lower().strip() == "yes" for f in filters):
+                filtered_results.append(r)
+            else:
+                logger.info(f"Image {r['id']} excluded by filter(s)")
+        
+        # Update results with filtered version
+        logger.info(f"Results filtered: {len(results)} -> {len(filtered_results)}")
+        results = filtered_results
+    
     # Format results for display
     result_html = ""
-    for r in results:
-        similarity_pct = f"{r['similarity'] * 100:.1f}%"
-        result_html += f"""
-        <div class="result">
-            <img src="/{r['processed_path']}" alt="{r['description']}">
-            <p class="similarity">Similarity: {similarity_pct}</p>
-            <p>{r['description']}</p>
-        </div>
-        """
+    if not results:
+        result_html = "<p>No matching images found. Try different search criteria or filters.</p>"
+    else:
+        for r in results:
+            similarity_pct = f"{r['similarity'] * 100:.1f}%"
+            
+            # Add filter results to display if any filters were applied
+            filter_display = ""
+            if filters and "filter_results_json" in r:
+                try:
+                    filter_results = json.loads(r["filter_results_json"])
+                    filter_display = "<div class='filter-results'><h4>Filter Results:</h4><ul>"
+                    for f in filters:
+                        answer = filter_results.get(f, "unknown")
+                        if isinstance(answer, str):
+                            answer = answer.strip()
+                        filter_display += f"<li><strong>{f}</strong>: {answer}</li>"
+                    filter_display += "</ul></div>"
+                except (json.JSONDecodeError, TypeError):
+                    logger.warning(f"Error parsing filter_results_json for display, image {r['id']}")
+            
+            result_html += f"""
+            <div class="result">
+                <img src="/{r['processed_path']}" alt="{r['description']}">
+                <p class="similarity">Similarity: {similarity_pct}</p>
+                <p>{r['description']}</p>
+                {filter_display}
+            </div>
+            """
     
     # Return HTML response
     return HTMLResponse(f"""
@@ -777,6 +960,8 @@ async def search_by_image(file: UploadFile = File(...)):
             .result {{ margin: 10px; text-align: center; width: 220px; border: 1px solid #ddd; padding: 10px; }}
             img {{ max-width: 200px; max-height: 200px; }}
             .similarity {{ font-weight: bold; color: #4CAF50; }}
+            .filter-results {{ text-align: left; margin-top: 10px; font-size: 0.9em; background-color: #f5f5f5; padding: 5px; }}
+            .filter-results ul {{ padding-left: 20px; margin: 5px 0; }}
             a {{ display: block; margin: 20px 0; }}
         </style>
     </head>
@@ -787,8 +972,9 @@ async def search_by_image(file: UploadFile = File(...)):
             <img src="data:image/jpeg;base64,{base64.b64encode(content).decode()}" 
                  style="max-width: 300px; max-height: 300px;">
         </div>
+        {f'<div class="applied-filters"><h3>Applied Filters:</h3><ul>' + ''.join([f'<li>{f}</li>' for f in filters]) + '</ul></div>' if filters else ''}
         <div id="results">
-            {result_html if result_html else "<p>No similar images found</p>"}
+            {result_html}
         </div>
         <a href="/">Back to Home</a>
     </body>
@@ -796,24 +982,69 @@ async def search_by_image(file: UploadFile = File(...)):
     """)
 
 @app.get("/search/text")
-async def search_by_text_route(query: str):
+async def search_by_text_route(query: str, filters: List[str] = None):
     """Search for images using text query"""
     logger.info(f"Text search request received with query: '{query}'")
+    if filters:
+        logger.info(f"Filters specified: {filters}")
     
     # Search using text
     results = search_by_text(query)
     
+    # Filter results based on selected filters
+    if filters:
+        logger.info(f"Filtering results based on {len(filters)} filters")
+        filtered_results = []
+        for r in results:
+            # Get filter results from JSON string
+            filter_results = {}
+            if "filter_results_json" in r:
+                try:
+                    filter_results = json.loads(r["filter_results_json"])
+                except (json.JSONDecodeError, TypeError):
+                    logger.warning(f"Error parsing filter_results_json for image {r['id']}")
+            
+            # Check if this result matches all the selected filters
+            if all(filter_results.get(f, "").lower().strip() == "yes" for f in filters):
+                filtered_results.append(r)
+            else:
+                logger.info(f"Image {r['id']} excluded by filter(s)")
+        
+        # Update results with filtered version
+        logger.info(f"Results filtered: {len(results)} -> {len(filtered_results)}")
+        results = filtered_results
+    
     # Format results for display
     result_html = ""
-    for r in results:
-        similarity_pct = f"{r['similarity'] * 100:.1f}%"
-        result_html += f"""
-        <div class="result">
-            <img src="/{r['processed_path']}" alt="{r['description']}">
-            <p class="similarity">Similarity: {similarity_pct}</p>
-            <p>{r['description']}</p>
-        </div>
-        """
+    if not results:
+        result_html = "<p>No matching images found. Try different search criteria or filters.</p>"
+    else:
+        for r in results:
+            similarity_pct = f"{r['similarity'] * 100:.1f}%"
+            
+            # Add filter results to display if any filters were applied
+            filter_display = ""
+            if filters and "filter_results_json" in r:
+                try:
+                    filter_results = json.loads(r["filter_results_json"])
+                    filter_display = "<div class='filter-results'><h4>Filter Results:</h4><ul>"
+                    for f in filters:
+                        answer = filter_results.get(f, "unknown")
+                        if isinstance(answer, str):
+                            answer = answer.strip()
+                        filter_display += f"<li><strong>{f}</strong>: {answer}</li>"
+                    filter_display += "</ul></div>"
+                except (json.JSONDecodeError, TypeError):
+                    logger.warning(f"Error parsing filter_results_json for display, image {r['id']}")
+            
+            result_html += f"""
+            <div class="result">
+                <img src="/{r['processed_path']}" alt="{r['description']}">
+                <p class="similarity">Similarity: {similarity_pct}</p>
+                <p>{r['description']}</p>
+                {filter_display}
+            </div>
+            """
     
     # Return HTML response
     return HTMLResponse(f"""
@@ -828,6 +1059,8 @@ async def search_by_text_route(query: str):
             .result {{ margin: 10px; text-align: center; width: 220px; border: 1px solid #ddd; padding: 10px; }}
             img {{ max-width: 200px; max-height: 200px; }}
             .similarity {{ font-weight: bold; color: #4CAF50; }}
+            .filter-results {{ text-align: left; margin-top: 10px; font-size: 0.9em; background-color: #f5f5f5; padding: 5px; }}
+            .filter-results ul {{ padding-left: 20px; margin: 5px 0; }}
             a {{ display: block; margin: 20px 0; }}
         </style>
     </head>
@@ -836,224 +1069,10 @@ async def search_by_text_route(query: str):
         <div id="query" style="margin-bottom: 20px;">
             <h3>Query: "{query}"</h3>
         </div>
+        {f'<div class="applied-filters"><h3>Applied Filters:</h3><ul>' + ''.join([f'<li>{f}</li>' for f in filters]) + '</ul></div>' if filters else ''}
         <div id="results">
-            {result_html if result_html else "<p>No similar images found</p>"}
+            {result_html}
         </div>
-        <a href="/">Back to Home</a>
-    </body>
-    </html>
-    """)
-
-@app.post("/search/multimodal")
-async def search_by_multimodal(
-    file: UploadFile = File(...),
-    query: str = Form(...),
-    weight_image: float = Form(0.5)
-):
-    """Search for images using both uploaded image and text query"""
-    logger.info(f"Multimodal search request received with file: {file.filename}, text: '{query}'")
-    
-    # Validate weight parameter
-    weight_image = min(max(weight_image, 0.0), 1.0)  # Clamp between 0 and 1
-    
-    # Read file content
-    content = await file.read()
-    
-    # Handle image opening with better error handling
-    try:
-        # Try opening the image directly
-        image = Image.open(BytesIO(content))
-        logger.info(f"Search image opened successfully: {file.filename}")
-        
-        # Convert to RGB if needed (for RGBA, CMYK or other color modes)
-        if image.mode != 'RGB':
-            logger.info(f"Converting search image from {image.mode} to RGB mode")
-            image = image.convert('RGB')
-            
-    except Exception as e:
-        logger.error(f"Error opening search image: {str(e)}")
-        
-        # Save to temporary file and try a different approach
-        try:
-            logger.info(f"Attempting alternative method for problematic format")
-            temp_path = f"static/uploads/temp_search_{os.path.basename(file.filename)}"
-            with open(temp_path, "wb") as f:
-                f.write(content)
-                
-            # Try using a different approach to open the file
-            image = Image.open(temp_path)
-            logger.info(f"Search image opened successfully with alternative method")
-            
-            # Convert to RGB if needed
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
-                
-            # Clean up temp file
-            os.remove(temp_path)
-            
-        except Exception as e2:
-            logger.error(f"Failed with alternative method: {str(e2)}")
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Invalid or unsupported image format. Please convert your image to JPG, PNG, or other common formats. Error: {str(e)}"
-            )
-    
-    # Generate caption for the search image using Moondream
-    generated_caption, encoded_image = generate_image_caption(image)
-    
-    # Store full caption for display purposes
-    full_caption = generated_caption if generated_caption else ""
-    
-    # Create an enhanced query by combining user query with the AI caption
-    # LongCLIP has a maximum context length of 248 tokens (upgraded from CLIP's 77)
-    
-    # MODIFIED APPROACH: Prioritize the user's query over the AI caption
-    # If user query is very long, use it alone
-    # If user query is short, add as much of the AI caption as will fit
-    
-    # Using a slightly conservative limit for safety
-    CLIP_TOKEN_LIMIT = MAX_TOKEN_LENGTH - 10  # Leaving buffer for padding tokens
-    
-    # Estimate query length in tokens (rough approximation using character count)
-    # A better implementation would use a proper tokenizer, but this is a reasonable approximation
-    estimated_query_tokens = len(query) / 4  # Rough estimate: ~4 chars per token on average
-    
-    enhanced_query = query
-    caption_was_added = False
-    
-    # With LongCLIP's higher token limit, we can now include more of the caption
-    if generated_caption:
-        # Check if we have space for the caption
-        if estimated_query_tokens < CLIP_TOKEN_LIMIT - 5:  # Leave some buffer
-            # Calculate approximately how many tokens we have left for the caption
-            approx_tokens_left = CLIP_TOKEN_LIMIT - estimated_query_tokens
-            approx_chars_left = int(approx_tokens_left * 4)  # Convert back to character estimate
-            
-            # Truncate caption if needed
-            truncated_caption = generated_caption
-            if len(generated_caption) > approx_chars_left:
-                # Cut to approximate length and try to end at a complete word
-                truncated_caption = generated_caption[:approx_chars_left]
-                # Try to end at the last complete word
-                last_space = truncated_caption.rfind(" ", 0, approx_chars_left)
-                if last_space > 0:
-                    truncated_caption = generated_caption[:last_space]
-            
-            # With higher token limits, we can almost always add the caption
-            enhanced_query = f"{query} {truncated_caption}"
-            caption_was_added = True
-            logger.info(f"Enhanced query with AI caption (using LongCLIP's extended token limit): '{enhanced_query}'")
-        else:
-            logger.info(f"User query takes up most of the token limit. Using only user query: '{query}'")
-    else:
-        logger.info(f"No AI caption generated. Using only user query: '{query}'")
-    
-    # Search using both image and enhanced text
-    results = search_multimodal(image, enhanced_query, weight_image=weight_image)
-    
-    # Format results for display
-    result_html = ""
-    for r in results:
-        similarity_pct = f"{r['similarity'] * 100:.1f}%"
-        result_html += f"""
-        <div class="result">
-            <img src="/{r['processed_path']}" alt="{r['description']}">
-            <p class="similarity">Similarity: {similarity_pct}</p>
-            <p>{r['description']}</p>
-        </div>
-        """
-    
-    # Format the weight as a percentage for display
-    image_weight_pct = f"{weight_image * 100:.0f}%"
-    text_weight_pct = f"{(1 - weight_image) * 100:.0f}%"
-    
-    # Prepare caption display section
-    caption_section = ""
-    if full_caption:
-        caption_note = "This caption was automatically added to your search query (space permitting)" if caption_was_added else "Your query was prioritized, so this caption was not included in the search"
-        caption_section = f"""
-        <div class="ai-caption">
-            <h4>AI Caption for Your Image:</h4>
-            <p><em>"{full_caption}"</em></p>
-            <p class="note">{caption_note}</p>
-        </div>
-        """
-    
-    # Display the actual query used for embedding generation
-    final_query_section = f"""
-    <div class="final-query">
-        <h4>Final Query Used for Search:</h4>
-        <p style="background-color: #f5f5f5; padding: 10px; border-radius: 5px;"><code>{enhanced_query}</code></p>
-        <p class="note">This is the exact text used to generate the CLIP embedding for similarity search</p>
-    </div>
-    """
-    
-    # Return HTML response
-    return HTMLResponse(f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Multimodal Search Results</title>
-        <style>
-            body {{ font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; }}
-            h1, h2, h3 {{ color: #333; }}
-            .search-params {{ display: flex; margin-bottom: 30px; background-color: #f0f7ff; padding: 15px; border-radius: 5px; }}
-            .image-query {{ flex: 1; text-align: center; }}
-            .text-query {{ flex: 1; padding: 15px; }}
-            .weights {{ background-color: #f5f5f5; padding: 10px; border-radius: 5px; margin-top: 10px; }}
-            #results {{ display: flex; flex-wrap: wrap; }}
-            .result {{ margin: 10px; text-align: center; width: 220px; border: 1px solid #ddd; padding: 10px; }}
-            img {{ max-width: 200px; max-height: 200px; }}
-            .similarity {{ font-weight: bold; color: #4CAF50; }}
-            a {{ display: block; margin: 20px 0; }}
-            .ai-caption {{ background-color: #e6f7ff; padding: 10px; border-radius: 5px; margin: 10px 0; border-left: 5px solid #0099ff; }}
-            .final-query {{ background-color: #fff8e6; padding: 10px; border-radius: 5px; margin: 10px 0; border-left: 5px solid #ffa600; }}
-            .note {{ font-size: 0.9em; color: #666; }}
-            code {{ word-wrap: break-word; overflow-wrap: break-word; white-space: pre-wrap; }}
-        </style>
-    </head>
-    <body>
-        <h1>Multimodal Search Results</h1>
-        
-        <div class="search-params">
-            <div class="image-query">
-                <h3>Image Query</h3>
-                <img src="data:image/jpeg;base64,{base64.b64encode(content).decode()}" 
-                     style="max-width: 250px; max-height: 250px;">
-            </div>
-            
-            <div class="text-query">
-                <h3>Text Query</h3>
-                <p>Original query: "{query}"</p>
-                
-                {caption_section}
-                
-                {final_query_section}
-                
-                <div class="weights">
-                    <h4>Search Weights</h4>
-                    <p>Image Influence: {image_weight_pct}</p>
-                    <p>Text Influence: {text_weight_pct}</p>
-                </div>
-            </div>
-        </div>
-        
-        <h2>Results</h2>
-        <div id="results">
-            {result_html if result_html else "<p>No similar images found</p>"}
-        </div>
-        
-        <div>
-            <h3>Try Different Weights</h3>
-            <form action="/search/multimodal" method="post" enctype="multipart/form-data">
-                <input type="file" name="file" accept="image/*" required>
-                <input type="text" name="query" value="{query}" required>
-                <label for="weight_image">Image Influence:</label>
-                <input type="range" id="weight_image" name="weight_image" min="0" max="1" step="0.1" value="{weight_image}">
-                <button type="submit">Search Again</button>
-            </form>
-        </div>
-        
         <a href="/">Back to Home</a>
     </body>
     </html>
@@ -1296,64 +1315,66 @@ async def reset_confirm():
 
 @app.post("/reset-system")
 async def reset_system_route():
-    """Reset the entire system - clear ChromaDB collection and all processed images"""
+    """Reset the system by clearing all data"""
     logger.info("Reset system request received")
     
     try:
-        # Call the reset function
-        result = reset_system()
-        logger.info("System reset completed successfully")
+        success = reset_system()
         
-        # Return HTML response
-        return HTMLResponse(f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Reset Complete</title>
-            <style>
-                body {{ font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }}
-                .success {{ color: green; font-weight: bold; }}
-                .section {{ margin-bottom: 30px; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }}
-                a {{ display: block; margin: 20px 0; }}
-            </style>
-        </head>
-        <body>
-            <h1>System Reset Complete</h1>
-            
-            <div class="section">
-                <h2 class="success">✅ System has been reset successfully</h2>
-                <p>{result['message']}</p>
-                <p>The ImageMatch system has been completely reset. All vectors, metadata, and processed images have been deleted.</p>
-                <a href="/">Back to Home</a>
-            </div>
-        </body>
-        </html>
-        """)
+        if success:
+            return HTMLResponse(content=f"""
+            <html>
+            <head>
+                <title>System Reset</title>
+                <meta http-equiv="refresh" content="3;url=/" />
+                <style>
+                    body {{ font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; text-align: center; }}
+                    .success {{ color: green; }}
+                </style>
+            </head>
+            <body>
+                <h1 class="success">System Reset Complete</h1>
+                <p>All data has been cleared successfully.</p>
+                <p>You will be redirected to the home page in 3 seconds...</p>
+                <p><a href="/">Click here if you are not redirected automatically</a></p>
+            </body>
+            </html>
+            """)
+        else:
+            return HTMLResponse(content=f"""
+            <html>
+            <head>
+                <title>Reset Failed</title>
+                <style>
+                    body {{ font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; text-align: center; }}
+                    .error {{ color: red; }}
+                </style>
+            </head>
+            <body>
+                <h1 class="error">System Reset Failed</h1>
+                <p>There was an error resetting the system.</p>
+                <p><a href="/">Back to Home</a></p>
+            </body>
+            </html>
+            """, status_code=500)
     except Exception as e:
-        logger.error(f"Error during system reset: {e}")
-        return HTMLResponse(f"""
-        <!DOCTYPE html>
+        logger.error(f"Error in reset_system_route: {e}")
+        return HTMLResponse(content=f"""
         <html>
         <head>
-            <title>Reset Error</title>
+            <title>Reset Failed</title>
             <style>
-                body {{ font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }}
-                .error {{ color: red; font-weight: bold; }}
-                .section {{ margin-bottom: 30px; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }}
-                a {{ display: block; margin: 20px 0; }}
+                body {{ font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; text-align: center; }}
+                .error {{ color: red; }}
             </style>
         </head>
         <body>
-            <h1>System Reset Error</h1>
-            
-            <div class="section">
-                <h2 class="error">❌ An error occurred during system reset</h2>
-                <p>Error details: {str(e)}</p>
-                <a href="/">Back to Home</a>
-            </div>
+            <h1 class="error">System Reset Failed</h1>
+            <p>Error: {str(e)}</p>
+            <p><a href="/">Back to Home</a></p>
         </body>
         </html>
-        """)
+        """, status_code=500)
 
 @app.get("/edit-metadata/{image_id}")
 async def edit_metadata_form(image_id: str):
@@ -1524,6 +1545,321 @@ async def update_metadata(
         </body>
         </html>
         """)
+
+@app.post("/add-filter")
+async def add_filter(
+    filter_query: str = Form(...),
+    background_tasks: BackgroundTasks = None
+):
+    """Add a new dynamic filter and process it on all existing images"""
+    logger.info(f"Add filter request received: {filter_query}")
+    
+    if not moondream_model:
+        logger.error("Cannot add filter - Moondream model is not available")
+        return HTMLResponse(
+            content=f"""
+            <html>
+            <body>
+                <h1>Error</h1>
+                <p>Cannot add filter - Moondream model is not available.</p>
+                <p>Make sure the Moondream API key is correctly configured.</p>
+                <a href="/">Back to Home</a>
+            </body>
+            </html>
+            """,
+            status_code=400
+        )
+    
+    # Load existing filters
+    filters = load_filters()
+    
+    # Check if filter already exists
+    if filter_query in filters:
+        logger.info(f"Filter '{filter_query}' already exists, skipping")
+        return RedirectResponse(url="/", status_code=303)
+    
+    # Add new filter
+    filters.append(filter_query)
+    save_filters(filters)
+    logger.info(f"Filter '{filter_query}' added successfully")
+    
+    # Process filter on all existing images in the background
+    if background_tasks:
+        logger.info(f"Starting background task to process filter on all images")
+        background_tasks.add_task(process_filter_on_all_images, filter_query)
+    else:
+        # Process immediately if background tasks are not available
+        process_filter_on_all_images(filter_query)
+    
+    return RedirectResponse(url="/", status_code=303)
+
+@app.post("/search/multimodal")
+async def search_by_multimodal(
+    file: UploadFile = File(...),
+    query: str = Form(...),
+    weight_image: float = Form(0.5),
+    filters: List[str] = Form(None)
+):
+    """Search for images using both uploaded image and text query"""
+    logger.info(f"Multimodal search request received with file: {file.filename}, text: '{query}'")
+    if filters:
+        logger.info(f"Filters specified: {filters}")
+    
+    # Validate weight parameter
+    weight_image = min(max(weight_image, 0.0), 1.0)  # Clamp between 0 and 1
+    
+    # Read file content
+    content = await file.read()
+    
+    # Handle image opening with better error handling
+    try:
+        # Try opening the image directly
+        image = Image.open(BytesIO(content))
+        logger.info(f"Search image opened successfully: {file.filename}")
+        
+        # Convert to RGB if needed (for RGBA, CMYK or other color modes)
+        if image.mode != 'RGB':
+            logger.info(f"Converting search image from {image.mode} to RGB mode")
+            image = image.convert('RGB')
+            
+    except Exception as e:
+        logger.error(f"Error opening search image: {str(e)}")
+        
+        # Save to temporary file and try a different approach
+        try:
+            logger.info(f"Attempting alternative method for problematic format")
+            temp_path = f"static/uploads/temp_search_{os.path.basename(file.filename)}"
+            with open(temp_path, "wb") as f:
+                f.write(content)
+                
+            # Try using a different approach to open the file
+            image = Image.open(temp_path)
+            logger.info(f"Search image opened successfully with alternative method")
+            
+            # Convert to RGB if needed
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+                
+            # Clean up temp file
+            os.remove(temp_path)
+            
+        except Exception as e2:
+            logger.error(f"Failed with alternative method: {str(e2)}")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid or unsupported image format. Please convert your image to JPG, PNG, or other common formats. Error: {str(e)}"
+            )
+    
+    # Generate caption for the search image using Moondream
+    generated_caption, encoded_image = generate_image_caption(image)
+    
+    # Store full caption for display purposes
+    full_caption = generated_caption if generated_caption else ""
+    
+    # Create an enhanced query by combining user query with the AI caption
+    # LongCLIP has a maximum context length of 248 tokens (upgraded from CLIP's 77)
+    
+    # MODIFIED APPROACH: Prioritize the user's query over the AI caption
+    # If user query is very long, use it alone
+    # If user query is short, add as much of the AI caption as will fit
+    
+    # Using a slightly conservative limit for safety
+    CLIP_TOKEN_LIMIT = MAX_TOKEN_LENGTH - 10  # Leaving buffer for padding tokens
+    
+    # Estimate query length in tokens (rough approximation using character count)
+    # A better implementation would use a proper tokenizer, but this is a reasonable approximation
+    estimated_query_tokens = len(query) / 4  # Rough estimate: ~4 chars per token on average
+    
+    enhanced_query = query
+    caption_was_added = False
+    
+    # With LongCLIP's higher token limit, we can now include more of the caption
+    if generated_caption:
+        # Check if we have space for the caption
+        if estimated_query_tokens < CLIP_TOKEN_LIMIT - 5:  # Leave some buffer
+            # Calculate approximately how many tokens we have left for the caption
+            approx_tokens_left = CLIP_TOKEN_LIMIT - estimated_query_tokens
+            approx_chars_left = int(approx_tokens_left * 4)  # Convert back to character estimate
+            
+            # Truncate caption if needed
+            truncated_caption = generated_caption
+            if len(generated_caption) > approx_chars_left:
+                # Cut to approximate length and try to end at a complete word
+                truncated_caption = generated_caption[:approx_chars_left]
+                # Try to end at the last complete word
+                last_space = truncated_caption.rfind(" ", 0, approx_chars_left)
+                if last_space > 0:
+                    truncated_caption = generated_caption[:last_space]
+            
+            # With higher token limits, we can almost always add the caption
+            enhanced_query = f"{query} {truncated_caption}"
+            caption_was_added = True
+            logger.info(f"Enhanced query with AI caption (using LongCLIP's extended token limit): '{enhanced_query}'")
+        else:
+            logger.info(f"User query takes up most of the token limit. Using only user query: '{query}'")
+    else:
+        logger.info(f"No AI caption generated. Using only user query: '{query}'")
+    
+    # Search using both image and enhanced text
+    results = search_multimodal(image, enhanced_query, weight_image=weight_image)
+    
+    # Filter results based on selected filters
+    if filters:
+        logger.info(f"Filtering results based on {len(filters)} filters")
+        filtered_results = []
+        for r in results:
+            # Get filter results from JSON string
+            filter_results = {}
+            if "filter_results_json" in r:
+                try:
+                    filter_results = json.loads(r["filter_results_json"])
+                except (json.JSONDecodeError, TypeError):
+                    logger.warning(f"Error parsing filter_results_json for image {r['id']}")
+            
+            # Check if this result matches all the selected filters
+            if all(filter_results.get(f, "").lower().strip() == "yes" for f in filters):
+                filtered_results.append(r)
+            else:
+                logger.info(f"Image {r['id']} excluded by filter(s)")
+        
+        # Update results with filtered version
+        logger.info(f"Results filtered: {len(results)} -> {len(filtered_results)}")
+        results = filtered_results
+    
+    # Format results for display
+    result_html = ""
+    if not results:
+        result_html = "<p>No matching images found. Try different search criteria or filters.</p>"
+    else:
+        for r in results:
+            similarity_pct = f"{r['similarity'] * 100:.1f}%"
+            
+            # Add filter results to display if any filters were applied
+            filter_display = ""
+            if filters and "filter_results_json" in r:
+                try:
+                    filter_results = json.loads(r["filter_results_json"])
+                    filter_display = "<div class='filter-results'><h4>Filter Results:</h4><ul>"
+                    for f in filters:
+                        answer = filter_results.get(f, "unknown")
+                        if isinstance(answer, str):
+                            answer = answer.strip()
+                        filter_display += f"<li><strong>{f}</strong>: {answer}</li>"
+                    filter_display += "</ul></div>"
+                except (json.JSONDecodeError, TypeError):
+                    logger.warning(f"Error parsing filter_results_json for display, image {r['id']}")
+            
+            result_html += f"""
+            <div class="result">
+                <img src="/{r['processed_path']}" alt="{r['description']}">
+                <p class="similarity">Similarity: {similarity_pct}</p>
+                <p>{r['description']}</p>
+                {filter_display}
+            </div>
+            """
+    
+    # Format the weight as a percentage for display
+    image_weight_pct = f"{weight_image * 100:.0f}%"
+    text_weight_pct = f"{(1 - weight_image) * 100:.0f}%"
+    
+    # Prepare caption display section
+    caption_section = ""
+    if full_caption:
+        caption_note = "This caption was automatically added to your search query (space permitting)" if caption_was_added else "Your query was prioritized, so this caption was not included in the search"
+        caption_section = f"""
+        <div class="ai-caption">
+            <h4>AI Caption for Your Image:</h4>
+            <p><em>"{full_caption}"</em></p>
+            <p class="note">{caption_note}</p>
+        </div>
+        """
+    
+    # Display the actual query used for embedding generation
+    final_query_section = f"""
+    <div class="final-query">
+        <h4>Final Query Used for Search:</h4>
+        <p style="background-color: #f5f5f5; padding: 10px; border-radius: 5px;"><code>{enhanced_query}</code></p>
+        <p class="note">This is the exact text used to generate the CLIP embedding for similarity search</p>
+    </div>
+    """
+    
+    # Return HTML response
+    return HTMLResponse(f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Multimodal Search Results</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; }}
+            h1, h2, h3 {{ color: #333; }}
+            .search-params {{ display: flex; margin-bottom: 30px; background-color: #f0f7ff; padding: 15px; border-radius: 5px; }}
+            .image-query {{ flex: 1; text-align: center; }}
+            .text-query {{ flex: 1; padding: 15px; }}
+            .weights {{ background-color: #f5f5f5; padding: 10px; border-radius: 5px; margin-top: 10px; }}
+            #results {{ display: flex; flex-wrap: wrap; }}
+            .result {{ margin: 10px; text-align: center; width: 220px; border: 1px solid #ddd; padding: 10px; }}
+            img {{ max-width: 200px; max-height: 200px; }}
+            .similarity {{ font-weight: bold; color: #4CAF50; }}
+            .filter-results {{ text-align: left; margin-top: 10px; font-size: 0.9em; background-color: #f5f5f5; padding: 5px; }}
+            .filter-results ul {{ padding-left: 20px; margin: 5px 0; }}
+            a {{ display: block; margin: 20px 0; }}
+            .ai-caption {{ background-color: #e6f7ff; padding: 10px; border-radius: 5px; margin: 10px 0; border-left: 5px solid #0099ff; }}
+            .final-query {{ background-color: #fff8e6; padding: 10px; border-radius: 5px; margin: 10px 0; border-left: 5px solid #ffa600; }}
+            .note {{ font-size: 0.9em; color: #666; }}
+            code {{ word-wrap: break-word; overflow-wrap: break-word; white-space: pre-wrap; }}
+        </style>
+    </head>
+    <body>
+        <h1>Multimodal Search Results</h1>
+        
+        <div class="search-params">
+            <div class="image-query">
+                <h3>Image Query</h3>
+                <img src="data:image/jpeg;base64,{base64.b64encode(content).decode()}" 
+                     style="max-width: 250px; max-height: 250px;">
+            </div>
+            
+            <div class="text-query">
+                <h3>Text Query</h3>
+                <p>Original query: "{query}"</p>
+                
+                {caption_section}
+                
+                {final_query_section}
+                
+                <div class="weights">
+                    <h4>Search Weights</h4>
+                    <p>Image Influence: {image_weight_pct}</p>
+                    <p>Text Influence: {text_weight_pct}</p>
+                </div>
+            </div>
+        </div>
+        
+        {f'<div class="applied-filters"><h3>Applied Filters:</h3><ul>' + ''.join([f'<li>{f}</li>' for f in filters]) + '</ul></div>' if filters else ''}
+        
+        <h2>Results</h2>
+        <div id="results">
+            {result_html}
+        </div>
+        
+        <div>
+            <h3>Try Different Weights</h3>
+            <form action="/search/multimodal" method="post" enctype="multipart/form-data">
+                <input type="file" name="file" accept="image/*" required>
+                <input type="text" name="query" value="{query}" required>
+                <label for="weight_image">Image Influence:</label>
+                <input type="range" id="weight_image" name="weight_image" min="0" max="1" step="0.1" value="{weight_image}">
+                
+                {f'<div class="filter-options"><h4>Apply Filters</h4>' + ''.join([f'<label><input type="checkbox" name="filters" value="{f}" {"checked" if f in filters else ""}> {f}</label><br>' for f in load_filters()]) + '</div>' if load_filters() else ''}
+                
+                <button type="submit">Search Again</button>
+            </form>
+        </div>
+        
+        <a href="/">Back to Home</a>
+    </body>
+    </html>
+    """)
 
 # Initialize database on startup
 @app.on_event("startup")
