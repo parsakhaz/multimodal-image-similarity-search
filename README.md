@@ -31,6 +31,7 @@ A powerful image similarity search application that leverages CLIP embeddings an
 
 - Python 3.8+
 - Sufficient disk space for ML models (~1GB)
+- ChromaDB v0.6.0+ for vector storage
 - Moondream API key for image captioning (optional)
 
 ## Setup Instructions
@@ -74,7 +75,15 @@ MOONDREAM_API_KEY=your_moondream_api_key
 2. Obtain necessary API keys:
    - Moondream: Register at [console.moondream.ai](https://console.moondream.ai/) (optional for image captioning)
 
-### 5. Run the Application
+### 5. Initialize Database
+
+```bash
+python init_db.py
+```
+
+This script creates the ChromaDB collection and verifies that everything is set up correctly.
+
+### 6. Run the Application
 
 ```bash
 python app.py
@@ -158,6 +167,17 @@ Access the application at <http://localhost:8000>
 - Deterministic content-based identifiers
 - Consistent search results for identical images
 
+### ChromaDB Integration
+
+- Local vector database with persistent storage
+- No need for external API keys or cloud services
+- Compatible with ChromaDB v0.6.0+
+- Data stored in the `chroma_data` directory by default
+
+### Utility Scripts
+
+- `init_db.py`: Initialize ChromaDB collection and verify setup
+
 ## Troubleshooting
 
 ### Common Issues
@@ -176,6 +196,10 @@ Access the application at <http://localhost:8000>
    - Convert unsupported formats to JPG/PNG
    - Monitor memory usage for large images
    - Check background removal results
+
+4. **ChromaDB Issues**:
+   - Verify ChromaDB v0.6.0+ is installed
+   - Check for ChromaDB compatibility errors in logs
 
 ## Current Limitations
 

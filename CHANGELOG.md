@@ -2,6 +2,34 @@
 
 All notable changes to the ImageMatch project will be documented in this file.
 
+## [2.0.0] - 2024-03-04
+
+Major architecture change: Migrated from Pinecone to ChromaDB for vector database.
+
+### Added
+- Local ChromaDB integration replacing cloud-based Pinecone
+- New `init_db.py` script for initializing the ChromaDB collection
+- Detailed logging for ChromaDB operations
+
+### Changed
+- Replaced all Pinecone API calls with ChromaDB equivalents
+- Updated metadata handling to ensure AI captions are consistently stored
+- Modified startup process to properly initialize ChromaDB collection
+- Enhanced AI caption integration with metadata for better search results
+- Updated `process_image` function to properly store AI captions in metadata
+- Improved Moondream model initialization in application startup
+- Made application compatible with ChromaDB v0.6.0 API changes
+
+### Removed
+- Pinecone dependency and all Pinecone-specific code
+- Cloud-based vector storage in favor of local persistence
+
+### Technical
+- Added ChromaDB as core dependency (v0.6.0+)
+- Implemented persistent vector storage in local `chroma_data/` directory
+- Updated environment variable handling for ChromaDB configuration
+- Fixed API compatibility issues with ChromaDB's collection management
+
 ## [1.5.0] - 2024-03-04
 
 Major enhancement to text processing capabilities with LongCLIP.
