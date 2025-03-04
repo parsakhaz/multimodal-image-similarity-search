@@ -578,8 +578,15 @@ def reset_system():
     
     try:
         # Reset ChromaDB collection
-        collection.delete(where={})
-        logger.info("ChromaDB collection has been cleared")
+        # Get all IDs in the collection
+        all_ids = collection.get(include=[])["ids"]
+        
+        # Delete all items if there are any
+        if all_ids:
+            collection.delete(ids=all_ids)
+            logger.info("ChromaDB collection has been cleared")
+        else:
+            logger.info("ChromaDB collection is already empty")
         
         # Reset local cache
         image_metadata = {}
