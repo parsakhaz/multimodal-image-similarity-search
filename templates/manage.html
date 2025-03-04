@@ -185,15 +185,28 @@
             align-items: center;
             background-color: rgba(67, 97, 238, 0.1);
             color: var(--primary-color);
-            padding: 6px 12px;
-            border-radius: 100px;
-            font-size: 14px;
-            font-weight: 600;
-            transition: all 0.2s;
+            padding: 4px 10px;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            margin-right: 8px;
+            margin-bottom: 8px;
         }
         
         .filter-tag svg {
             margin-right: 6px;
+        }
+        
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+        
+        .checkbox-label input[type="checkbox"] {
+            margin-right: 8px;
+            width: 16px;
+            height: 16px;
+            accent-color: var(--primary-color);
         }
         
         .nav-bar {
@@ -360,6 +373,13 @@
                 <div class="form-group">
                     <label for="custom_metadata">Custom Metadata (Optional)</label>
                     <textarea id="custom_metadata" name="custom_metadata" rows="3" placeholder="Enter any additional metadata"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="remove_bg" id="remove_bg">
+                        Remove image background (isolates main subject)
+                    </label>
                 </div>
                 
                 <div class="form-group">
