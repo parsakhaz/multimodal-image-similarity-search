@@ -159,6 +159,7 @@ Access the application at <http://localhost:8000>
 - Background removal improves embedding quality
 - Efficient local vector storage with ChromaDB
 - Efficient deduplication prevents redundant processing
+- Encoded image storage reduces computational overhead for AI captioning
 
 ### Deduplication System
 
@@ -173,6 +174,14 @@ Access the application at <http://localhost:8000>
 - No need for external API keys or cloud services
 - Compatible with ChromaDB v0.6.0+
 - Data stored in the `chroma_data` directory by default
+
+### Encoded Image Optimization
+
+- Moondream-encoded images are saved during initial processing
+- Reduces computational overhead for repetitive AI operations
+- Encoded tensors stored as `.pt` files in `static/encoded` directory
+- Automatically managed alongside other image data
+- Significantly improves performance for multimodal operations
 
 ### Utility Scripts
 

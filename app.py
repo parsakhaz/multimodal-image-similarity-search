@@ -8,7 +8,7 @@ import logging
 import time
 from io import BytesIO
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, Any
 import json
 import imagehash
 
@@ -86,6 +86,7 @@ app = FastAPI(title="ImageMatch MVP")
 logger.info("Setting up directories...")
 os.makedirs("static/uploads", exist_ok=True)
 os.makedirs("static/processed", exist_ok=True)
+os.makedirs("static/encoded", exist_ok=True)
 os.makedirs(CHROMA_PERSIST_DIR, exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 logger.info("Directories setup complete")
@@ -138,14 +139,18 @@ def generate_image_hash(image: Image.Image) -> str:
     return phash
 
 # Generate image caption using Moondream model
-def generate_image_caption(image: Image.Image) -> str:
-    """Generate a descriptive caption for the image using Moondream"""
+def generate_image_caption(image: Image.Image) -> Tuple[Optional[str], Optional[Any]]:
+    """Generate a descriptive caption for the image using Moondream
+    
+    Returns:
+        Tuple containing (caption, encoded_image)
+    """
     global moondream_model
     
     # Skip if Moondream is not available
     if not moondream_model:
         logger.warning("Image captioning skipped - Moondream not available")
-        return None
+        return None, None
     
     try:
         logger.info("Generating image caption with Moondream")
@@ -159,10 +164,10 @@ def generate_image_caption(image: Image.Image) -> str:
         caption = caption_result["caption"]
         
         logger.info(f"Caption generated in {time.time() - start_time:.2f} seconds: {caption}")
-        return caption
+        return caption, encoded_image
     except Exception as e:
         logger.error(f"Error generating caption: {e}")
-        return None
+        return None, None
 
 # Process and store image
 def process_image(
@@ -192,8 +197,15 @@ def process_image(
         return existing_check["metadatas"][metadata_idx], False
     
     # Generate caption for the image using Moondream
-    generated_caption = generate_image_caption(image)
+    generated_caption, encoded_image = generate_image_caption(image)
     logger.info(f"Generated caption: {generated_caption}")
+    
+    # Save encoded image if available
+    if encoded_image is not None:
+        import torch
+        encoded_path = f"static/encoded/{image_id}.pt"
+        torch.save(encoded_image, encoded_path)
+        logger.info(f"Encoded image saved to {encoded_path}")
     
     # Remove background
     try:
@@ -378,6 +390,29 @@ def search_multimodal(
     # Search using the combined embedding
     return search_similar(combined_embedding, limit)
 
+# Load encoded image from disk
+def load_encoded_image(image_id: str) -> Optional[Any]:
+    """Load the encoded image from disk if it exists
+    
+    Args:
+        image_id: The unique ID of the image
+        
+    Returns:
+        The encoded image tensor or None if not found
+    """
+    try:
+        import torch
+        encoded_path = f"static/encoded/{image_id}.pt"
+        if os.path.exists(encoded_path):
+            logger.info(f"Loading encoded image from {encoded_path}")
+            return torch.load(encoded_path)
+        else:
+            logger.warning(f"Encoded image not found for {image_id}")
+            return None
+    except Exception as e:
+        logger.error(f"Error loading encoded image: {e}")
+        return None
+
 # Clear all data (reset function)
 def reset_system():
     """Reset the entire system by clearing ChromaDB collection and processed images"""
@@ -403,8 +438,18 @@ def reset_system():
                 os.remove(file_path)
                 count += 1
         logger.info(f"Deleted {count} processed image files")
+        
+        # Clear encoded images directory
+        encoded_dir = "static/encoded"
+        encoded_count = 0
+        for filename in os.listdir(encoded_dir):
+            file_path = os.path.join(encoded_dir, filename)
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+                encoded_count += 1
+        logger.info(f"Deleted {encoded_count} encoded image files")
     except Exception as e:
-        logger.error(f"Error clearing processed images: {e}")
+        logger.error(f"Error clearing processed or encoded images: {e}")
         raise
     
     # Clear in-memory metadata cache
@@ -854,7 +899,7 @@ async def search_by_multimodal(
             )
     
     # Generate caption for the search image using Moondream
-    generated_caption = generate_image_caption(image)
+    generated_caption, encoded_image = generate_image_caption(image)
     
     # Store full caption for display purposes
     full_caption = generated_caption if generated_caption else ""

@@ -2,6 +2,25 @@
 
 All notable changes to the ImageMatch project will be documented in this file.
 
+## [2.1.0] - 2024-03-05
+
+Performance optimization with encoded image storage.
+
+### Added
+- Persistent storage for Moondream-encoded images to reduce computational overhead
+- New directory `static/encoded` for storing encoded image tensors
+- Helper function for loading encoded images for reuse in AI operations
+
+### Changed
+- Modified image captioning process to save encoded representations
+- Enhanced reset functionality to manage encoded image files
+- Optimized `generate_image_caption` function to return both caption and encoded image
+
+### Technical
+- Implemented PyTorch tensor storage for encoded images
+- Integrated encoded image handling into the image processing pipeline
+- Ensured proper cleanup of encoded images during system reset
+
 ## [2.0.0] - 2024-03-04
 
 Major architecture change: Migrated from Pinecone to ChromaDB for vector database.
