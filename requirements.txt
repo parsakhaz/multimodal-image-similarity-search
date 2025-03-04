@@ -1,13 +1,13 @@
 torch>=2.0.0
 transformers>=4.30.0
-tokenizers>=0.21.0,<0.22.0
+tokenizers
 pillow>=8.0.0
 fastapi>=0.68.0
 uvicorn>=0.15.0
 python-multipart>=0.0.5
 rembg>=2.0.0
 numpy>=1.19.5
-pinecone>=2.2.0
+chromadb>=0.4.13
 python-dotenv>=0.19.0
 requests>=2.26.0 
 onnx

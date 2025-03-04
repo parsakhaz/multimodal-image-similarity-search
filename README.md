@@ -1,6 +1,6 @@
 # ImageMatch: AI-Powered Image and Text Similarity Search with Automatic Captions and Multimodal Capabilities
 
-A powerful image similarity search application that leverages CLIP embeddings and Pinecone for vector storage. This application enables finding similar images based on visual content, text descriptions, or a combination of both.
+A powerful image similarity search application that leverages CLIP embeddings and ChromaDB for vector storage. This application enables finding similar images based on visual content, text descriptions, or a combination of both.
 
 ## Core Features
 
@@ -13,13 +13,13 @@ A powerful image similarity search application that leverages CLIP embeddings an
   - Image-based similarity search
   - Natural language text queries
   - Multimodal search combining image and text inputs
-  - Fast vector similarity search via Pinecone
+  - Fast vector similarity search via ChromaDB
 
 - **Intelligent Data Management**:
   - Content-based deduplication using perceptual hashing
   - Rich metadata support with custom fields
   - Comprehensive image database interface
-  - Stateful architecture with Pinecone integration
+  - Stateful architecture with local ChromaDB integration
 
 - **Technical Features**:
   - Modular, maintainable architecture
@@ -30,9 +30,8 @@ A powerful image similarity search application that leverages CLIP embeddings an
 ## Prerequisites
 
 - Python 3.8+
-- Pinecone account (free tier supported)
 - Sufficient disk space for ML models (~1GB)
-- Moondream API key for image captioning
+- Moondream API key for image captioning (optional)
 
 ## Setup Instructions
 
@@ -67,17 +66,13 @@ pip install -r requirements.txt
 1. Create a `.env` file with your credentials:
 
 ```env
-PINECONE_API_KEY=your_pinecone_api_key
-PINECONE_CLOUD=aws
-PINECONE_REGION=us-east-1
-INDEX_NAME=image-match
+COLLECTION_NAME=image-match
+CHROMA_PERSIST_DIR=chroma_data
 MOONDREAM_API_KEY=your_moondream_api_key
 ```
 
 2. Obtain necessary API keys:
-   - Pinecone: Sign up at <https://www.pinecone.io/>
-      - Make sure that your image index has a dimension of 768. Other config is default.
-   - Moondream: Register at [console.moondream.ai](https://console.moondream.ai/)
+   - Moondream: Register at [console.moondream.ai](https://console.moondream.ai/) (optional for image captioning)
 
 ### 5. Run the Application
 
@@ -124,7 +119,7 @@ Access the application at <http://localhost:8000>
    - Combine image and text inputs
    - Adjust weights between visual and textual similarity
    - Fine-tune results based on your needs
-   - **Note**: Text queries limited to CLIP's 77 token maximum (prioritizes user queries over AI captions)
+   - **Note**: Uses LongCLIP with extended token support (248 tokens)
 
 ### System Management
 
@@ -140,12 +135,12 @@ Access the application at <http://localhost:8000>
 1. **Upload Processing**:
    - Perceptual hash calculation for deduplication
    - Background removal for focused analysis
-   - CLIP embedding generation (512-dimensional vector)
-   - Metadata and embedding storage in Pinecone
+   - CLIP embedding generation (768-dimensional vector)
+   - Metadata and embedding storage in ChromaDB
 
 2. **Search Processing**:
    - Query processing matches upload pipeline
-   - Vector similarity computation via Pinecone
+   - Vector similarity computation via ChromaDB
    - Results ranked by similarity scores
    - Optional multimodal query combination
 
@@ -153,7 +148,7 @@ Access the application at <http://localhost:8000>
 
 - Model caching reduces loading time
 - Background removal improves embedding quality
-- Millisecond-level vector search with Pinecone
+- Efficient local vector storage with ChromaDB
 - Efficient deduplication prevents redundant processing
 
 ### Deduplication System
@@ -167,10 +162,10 @@ Access the application at <http://localhost:8000>
 
 ### Common Issues
 
-1. **Connection Errors**:
-   - Verify API keys in `.env`
-   - Check internet connectivity
-   - Confirm account status
+1. **Storage Errors**:
+   - Verify `chroma_data` directory is writable
+   - Check disk space availability
+   - Ensure proper permissions
 
 2. **Model Issues**:
    - Ensure sufficient disk space
@@ -186,9 +181,9 @@ Access the application at <http://localhost:8000>
 
 ### Text Processing Capabilities
 
-- **Extended Token Support**: The system now uses LongCLIP with a 248 token limit (upgraded from CLIP's 77 token limit)
+- **Extended Token Support**: The system uses LongCLIP with a 248 token limit (upgraded from CLIP's 77 token limit)
 - **Impact on Multimodal Search**: Long text queries and AI captions can now be combined with minimal truncation
-- **Solution Implementation**: The system still prioritizes user queries but can now include much more descriptive text
+- **Solution Implementation**: The system prioritizes user queries but can now include much more descriptive text
 
 ### Other Considerations
 
