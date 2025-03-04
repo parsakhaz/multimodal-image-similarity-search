@@ -196,6 +196,32 @@
             margin-right: 6px;
         }
         
+        .delete-filter-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            color: var(--primary-color);
+            transition: all 0.2s;
+            box-shadow: none;
+        }
+        
+        .delete-filter-btn:hover {
+            background-color: rgba(244, 67, 54, 0.1);
+            color: #d32f2f;
+        }
+        
+        .delete-filter-btn:active {
+            transform: translateY(1px);
+            background-color: rgba(244, 67, 54, 0.2);
+        }
+        
         .checkbox-label {
             display: flex;
             align-items: center;
@@ -448,6 +474,14 @@
                         <path d="M3 4C3 3.44772 3.44772 3 4 3H20C20.5523 3 21 3.44772 21 4V6.58579C21 6.851 20.8946 7.10536 20.7071 7.29289L14.2929 13.7071C14.1054 13.8946 14 14.149 14 14.4142V17L10 21V14.4142C10 14.149 9.89464 13.8946 9.70711 13.7071L3.29289 7.29289C3.10536 7.10536 3 6.851 3 6.58579V4Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
                     {{ filter }}
+                    <form action="/delete-filter" method="post" style="display: inline; margin-left: 8px;">
+                        <input type="hidden" name="filter_query" value="{{ filter }}">
+                        <button type="submit" class="delete-filter-btn" title="Delete this filter">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M6 18L18 6M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </button>
+                    </form>
                 </div>
                 {% endfor %}
             </div>
@@ -569,6 +603,14 @@
                                 <path d="M3 4C3 3.44772 3.44772 3 4 3H20C20.5523 3 21 3.44772 21 4V6.58579C21 6.851 20.8946 7.10536 20.7071 7.29289L14.2929 13.7071C14.1054 13.8946 14 14.149 14 14.4142V17L10 21V14.4142C10 14.149 9.89464 13.8946 9.70711 13.7071L3.29289 7.29289C3.10536 7.10536 3 6.851 3 6.58579V4Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                             </svg>
                             ${formData.get('filter_query')}
+                            <form action="/delete-filter" method="post" style="display: inline; margin-left: 8px;">
+                                <input type="hidden" name="filter_query" value="${formData.get('filter_query')}">
+                                <button type="submit" class="delete-filter-btn" title="Delete this filter">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M6 18L18 6M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                </button>
+                            </form>
                         `;
                         filtersContainer.appendChild(newFilter);
                         

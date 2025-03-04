@@ -2487,6 +2487,70 @@ async def add_filter(
     
     return RedirectResponse(url="/", status_code=303)
 
+@app.post("/delete-filter")
+async def delete_filter(filter_query: str = Form(...)):
+    """Delete a filter from the filters list
+    
+    Args:
+        filter_query: The filter to delete
+    """
+    try:
+        logger.info(f"Received request to delete filter: {filter_query}")
+        # Load current filters
+        filters = load_filters()
+        
+        # Check if filter exists
+        if filter_query in filters:
+            # Remove the filter
+            filters.remove(filter_query)
+            save_filters(filters)
+            logger.info(f"Filter '{filter_query}' deleted successfully")
+            return RedirectResponse(url="/manage", status_code=303)
+        else:
+            logger.warning(f"Filter '{filter_query}' not found in filters list")
+            return HTMLResponse(
+                """
+                <html>
+                <head>
+                    <title>Error</title>
+                    <meta http-equiv="refresh" content="3;url=/manage">
+                    <style>
+                        body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+                        .error { color: #d32f2f; }
+                    </style>
+                </head>
+                <body>
+                    <h1 class="error">Error</h1>
+                    <p>Filter not found. Redirecting back...</p>
+                    <a href="/manage">Return to Manage page</a>
+                </body>
+                </html>
+                """,
+                status_code=404
+            )
+    except Exception as e:
+        logger.error(f"Error deleting filter: {e}")
+        return HTMLResponse(
+            """
+            <html>
+            <head>
+                <title>Error</title>
+                <meta http-equiv="refresh" content="3;url=/manage">
+                <style>
+                    body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+                    .error { color: #d32f2f; }
+                </style>
+            </head>
+            <body>
+                <h1 class="error">Error</h1>
+                <p>An error occurred while deleting the filter. Redirecting back...</p>
+                <a href="/manage">Return to Manage page</a>
+            </body>
+            </html>
+            """,
+            status_code=500
+        )
+
 @app.post("/search/multimodal")
 async def search_by_multimodal(
     file: UploadFile = File(...),
@@ -2832,7 +2896,8 @@ async def unified_search(
 ):
     """Unified search endpoint that handles all search types (image, text, multimodal)
     and returns partial HTML for htmx to update the UI."""
-    logger.info(f"Unified search request received. Query: '{query}', File: {file.filename if file else None}")
+    file_name = file.filename if file else None
+    logger.info(f"Unified search request received. Query: '{query}', File: {file_name}")
     if filters:
         logger.info(f"Filters specified: {filters}")
     
@@ -2840,65 +2905,88 @@ async def unified_search(
     results = []
     query_image_html = ""
     
-    # Determine the type of search based on provided parameters
-    if file and not query:
-        # Image-only search
-        content = await file.read()
-        image = Image.open(BytesIO(content))
-        
-        # Handle image mode conversion if needed
-        if image.mode != 'RGB':
-            image = image.convert('RGB')
-        
-        # Remove background (optional for search)
+    # Check if file is valid and has content
+    has_valid_file = False
+    file_content = None
+    
+    if file is not None:
         try:
-            clean_image = remove_background(image)
+            file_content = await file.read()
+            # Only consider the file valid if it has content
+            has_valid_file = len(file_content) > 0
+            # Reset file cursor for further reads if needed
+            if has_valid_file:
+                await file.seek(0)
         except Exception as e:
-            logger.warning(f"Background removal failed, using original image: {str(e)}")
-            clean_image = image
+            logger.error(f"Error reading file: {str(e)}")
+            has_valid_file = False
+    
+    # Determine the type of search based on provided parameters
+    if has_valid_file and not query:
+        # Image-only search
+        try:
+            image = Image.open(BytesIO(file_content))
+            
+            # Handle image mode conversion if needed
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+            
+            # Remove background (optional for search)
+            try:
+                clean_image = remove_background(image)
+            except Exception as e:
+                logger.warning(f"Background removal failed, using original image: {str(e)}")
+                clean_image = image
+            
+            # Generate embedding and search
+            embeddings = generate_clip_embedding(clean_image)
+            results = search_similar(embeddings["image"][0])
+            
+            # Create HTML for the query image display
+            query_image_html = f"""
+            <div class="query-image">
+                <h3>Query Image</h3>
+                <img src="data:image/jpeg;base64,{base64.b64encode(file_content).decode()}">
+            </div>
+            """
+        except Exception as e:
+            logger.error(f"Error processing image file: {str(e)}")
+            return HTMLResponse(f"<p>Error processing image: {str(e)}</p>")
         
-        # Generate embedding and search
-        embeddings = generate_clip_embedding(clean_image)
-        results = search_similar(embeddings["image"][0])
-        
-        # Create HTML for the query image display
-        query_image_html = f"""
-        <div class="query-image">
-            <h3>Query Image</h3>
-            <img src="data:image/jpeg;base64,{base64.b64encode(content).decode()}">
-        </div>
-        """
-        
-    elif query and not file:
+    elif query and not has_valid_file:
         # Text-only search
         results = search_by_text(query)
         
-    elif file and query:
+    elif has_valid_file and query:
         # Multimodal search (combine image and text)
-        content = await file.read()
-        image = Image.open(BytesIO(content))
-        
-        # Handle image mode conversion if needed
-        if image.mode != 'RGB':
-            image = image.convert('RGB')
-        
-        # Weight validation
-        weight_image = min(max(weight_image, 0.0), 1.0)  # Clamp between 0 and 1
-        
-        # Perform multimodal search
-        results = search_multimodal(image, query, weight_image)
-        
-        # Create HTML for the query image display
-        query_image_html = f"""
-        <div class="query-image">
-            <h3>Query Image</h3>
-            <img src="data:image/jpeg;base64,{base64.b64encode(content).decode()}">
-            <p>Text Query: "{query}" (Image Weight: {weight_image})</p>
-        </div>
-        """
+        try:
+            image = Image.open(BytesIO(file_content))
+            
+            # Handle image mode conversion if needed
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+            
+            # Weight validation
+            weight_image = min(max(weight_image, 0.0), 1.0)  # Clamp between 0 and 1
+            
+            # Perform multimodal search
+            results = search_multimodal(image, query, weight_image)
+            
+            # Create HTML for the query image display
+            query_image_html = f"""
+            <div class="query-image">
+                <h3>Query Image</h3>
+                <img src="data:image/jpeg;base64,{base64.b64encode(file_content).decode()}">
+                <p>Text Query: "{query}" (Image Weight: {weight_image})</p>
+            </div>
+            """
+        except Exception as e:
+            logger.error(f"Error processing image file for multimodal search: {str(e)}")
+            return HTMLResponse(f"<p>Error processing image for multimodal search: {str(e)}</p>")
     else:
         # No valid search parameters
-        return HTMLResponse("<p>Please provide an image, text, or both to search.</p>")
+        if not query and not has_valid_file:
+            return HTMLResponse("<p>Please provide an image, text, or both to search.</p>")
     
     # Filter results based on selected filters
     if filters:
