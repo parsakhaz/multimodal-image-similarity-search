@@ -1278,32 +1278,31 @@ async def view_all_images():
     for image_id, metadata in image_metadata.items():
         # Check if AI caption exists and is meaningful
         ai_caption_html = ""
-        if metadata.get('ai_caption') and metadata.get('ai_caption') != "No caption generated":
-            ai_caption_html = f"""
-            <div class="ai-caption">
-                <h4>AI Caption:</h4>
-                <p><em>"{metadata.get('ai_caption')}"</em></p>
-            </div>
-            """
-            
+        custom_metadata = metadata.get('custom_metadata', '')
+        
         image_html = f"""
-        <div class="image-item">
+        <div class="card image-item">
             <h3>{metadata.get('description', 'No description')}</h3>
             <div class="image-details">
                 <div class="image-preview">
                     <img src="/{metadata.get('processed_path', '')}" alt="{metadata.get('description', 'Image')}">
                 </div>
                 <div class="image-metadata">
-                    <p><strong>ID:</strong> {image_id}</p>
-                    <p><strong>Original filename:</strong> {metadata.get('original_filename', 'Unknown')}</p>
-                    <p><strong>Upload time:</strong> {metadata.get('upload_time', 'Unknown')}</p>
-                    {ai_caption_html}
+                    <p><strong>ID:</strong> <span class="metadata-value">{image_id}</span></p>
+                    <p><strong>Original filename:</strong> <span class="metadata-value">{metadata.get('original_filename', 'Unknown')}</span></p>
+                    <p><strong>Upload time:</strong> <span class="metadata-value">{metadata.get('upload_time', 'Unknown')}</span></p>
+                    
                     <div class="custom-metadata">
                         <h4>Custom Metadata:</h4>
-                        <pre>{metadata.get('custom_metadata', 'None')}</pre>
+                        <pre>{custom_metadata}</pre>
                     </div>
                     <div class="actions">
-                        <a href="/edit-metadata/{image_id}" class="edit-button">Edit Metadata</a>
+                        <a href="/edit-metadata/{image_id}" class="action-button edit-button">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M11 4H4C3.44772 4 3 4.44772 3 5V19C3 19.5523 3.44772 20 4 20H18C18.5523 20 19 19.5523 19 19V12M17.5858 3.58579C18.3668 2.80474 19.6332 2.80474 20.4142 3.58579C21.1953 4.36683 21.1953 5.63316 20.4142 6.41421L11.8284 15H9L9 12.1716L17.5858 3.58579Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            Edit Metadata
+                        </a>
                     </div>
                 </div>
             </div>
@@ -1315,50 +1314,242 @@ async def view_all_images():
     
     return HTMLResponse(f"""
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
     <head>
-        <title>All Images</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>ImageMatch - All Images</title>
         <style>
-            body {{ font-family: Arial, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; }}
-            h1, h2, h3 {{ color: #333; }}
-            .image-item {{ margin-bottom: 30px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }}
-            .image-details {{ display: flex; }}
-            .image-preview {{ margin-right: 20px; }}
-            .image-metadata {{ flex-grow: 1; }}
-            img {{ max-width: 200px; max-height: 200px; }}
-            .custom-metadata {{ background-color: #f5f5f5; padding: 10px; border-radius: 5px; margin-top: 10px; }}
-            .ai-caption {{ background-color: #e6f7ff; padding: 10px; border-radius: 5px; margin: 10px 0; border-left: 3px solid #0099ff; }}
-            pre {{ white-space: pre-wrap; word-wrap: break-word; max-width: 100%; overflow-wrap: break-word; }}
-            a {{ display: block; margin: 20px 0; }}
-            .edit-button {{ 
-                display: inline-block;
-                background-color: #4CAF50; 
-                color: white; 
-                padding: 8px 16px; 
-                text-decoration: none; 
-                border-radius: 4px;
-                margin-top: 10px;
+            :root {{
+                --primary-color: #4361ee;
+                --secondary-color: #3f37c9;
+                --success-color: #4CAF50;
+                --text-color: #333;
+                --light-bg: #f8f9fa;
+                --border-color: #dee2e6;
+                --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                --radius: 8px;
             }}
-            .edit-button:hover {{ 
-                background-color: #45a049; 
+            
+            body {{ 
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                max-width: 1200px; 
+                margin: 0 auto; 
+                padding: 20px;
+                background-color: #fff;
+                color: var(--text-color);
+                line-height: 1.6;
             }}
-            .actions {{ 
-                margin-top: 15px; 
+            
+            h1 {{ 
+                color: var(--primary-color);
+                font-weight: 700;
+                margin-bottom: 30px;
+                border-bottom: 2px solid var(--border-color);
+                padding-bottom: 10px;
+            }}
+            
+            .card {{
+                background-color: var(--light-bg);
+                padding: 25px;
+                border-radius: var(--radius);
+                margin-bottom: 30px;
+                box-shadow: var(--shadow);
+                border: 1px solid var(--border-color);
+            }}
+            
+            .image-item {{
+                margin-bottom: 30px;
+            }}
+            
+            .image-item h3 {{
+                margin-top: 0;
+                color: var(--primary-color);
+                font-size: 1.3rem;
+                margin-bottom: 15px;
+            }}
+            
+            .image-details {{
+                display: flex;
+                flex-wrap: wrap;
+                gap: 20px;
+            }}
+            
+            .image-preview {{
+                flex: 0 0 200px;
+            }}
+            
+            .image-metadata {{
+                flex: 1;
+                min-width: 300px;
+            }}
+            
+            .image-preview img {{
+                max-width: 100%;
+                border-radius: var(--radius);
+                box-shadow: var(--shadow);
+            }}
+            
+            .custom-metadata {{
+                background-color: rgba(67, 97, 238, 0.05);
+                padding: 15px;
+                border-radius: var(--radius);
+                margin-top: 15px;
+                border-left: 3px solid var(--primary-color);
+            }}
+            
+            .custom-metadata h4 {{
+                margin-top: 0;
+                color: var(--primary-color);
+            }}
+            
+            pre {{
+                white-space: pre-wrap;
+                word-wrap: break-word;
+                max-width: 100%;
+                overflow-wrap: break-word;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                font-size: 0.9rem;
+                margin: 0;
+                padding: 0;
+            }}
+            
+            .metadata-value {{
+                font-weight: normal;
+                color: #666;
+            }}
+            
+            .actions {{
+                margin-top: 20px;
+            }}
+            
+            .action-button {{
+                display: inline-flex;
+                align-items: center;
+                background-color: var(--primary-color);
+                color: white;
+                padding: 8px 16px;
+                text-decoration: none;
+                border-radius: var(--radius);
+                font-weight: 600;
+                transition: background-color 0.3s;
+            }}
+            
+            .action-button svg {{
+                margin-right: 8px;
+            }}
+            
+            .action-button:hover {{
+                background-color: var(--secondary-color);
+                text-decoration: none;
+            }}
+            
+            .edit-button {{
+                background-color: var(--success-color);
+            }}
+            
+            .edit-button:hover {{
+                background-color: #39873d;
+            }}
+            
+            .nav-bar {{
+                display: flex;
+                margin-bottom: 30px;
+                border-bottom: 1px solid var(--border-color);
+                padding-bottom: 15px;
+            }}
+            
+            .nav-bar a {{
+                color: var(--text-color);
+                text-decoration: none;
+                margin-right: 20px;
+                font-weight: 600;
+                transition: color 0.2s;
+                display: inline-flex;
+                align-items: center;
+            }}
+            
+            .nav-bar a:hover {{
+                color: var(--primary-color);
+            }}
+            
+            .nav-bar a svg {{
+                margin-right: 6px;
+            }}
+            
+            .danger-button {{
+                background-color: #dc3545;
+                color: white;
+                padding: 8px 16px;
+                text-decoration: none;
+                border-radius: var(--radius);
+                font-weight: 600;
+                transition: background-color 0.3s;
+                display: inline-flex;
+                align-items: center;
+                margin-top: 20px;
+            }}
+            
+            .danger-button:hover {{
+                background-color: #c82333;
+                text-decoration: none;
+            }}
+            
+            @media (max-width: 768px) {{
+                body {{
+                    padding: 15px;
+                }}
+                
+                .card {{
+                    padding: 20px;
+                }}
+                
+                .image-details {{
+                    flex-direction: column;
+                }}
             }}
         </style>
     </head>
     <body>
-        <h1>All Stored Images</h1>
-        <p>Total images: {len(image_metadata)}</p>
+        <h1>ImageMatch</h1>
+        
+        <div class="nav-bar">
+            <a href="/">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M3 12L5 10M5 10L12 3L19 10M5 10V20C5 20.5523 5.44772 21 6 21H9M19 10L21 12M19 10V20C19 20.5523 18.5523 21 18 21H15M9 21C9.55228 21 10 20.5523 10 20V16C10 15.4477 10.4477 15 11 15H13C13.5523 15 14 15.4477 14 16V20C14 20.5523 14.4477 21 15 21M9 21H15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Home
+            </a>
+            <a href="/app">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M15.5 14H14.71L14.43 13.73C15.41 12.59 16 11.11 16 9.5C16 5.91 13.09 3 9.5 3C5.91 3 3 5.91 3 9.5C3 13.09 5.91 16 9.5 16C11.11 16 12.59 15.41 13.73 14.43L14 14.71V15.5L19 20.49L20.49 19L15.5 14ZM9.5 14C7.01 14 5 11.99 5 9.5C5 7.01 7.01 5 9.5 5C11.99 5 14 7.01 14 9.5C14 11.99 11.99 14 9.5 14Z" fill="currentColor"/>
+                </svg>
+                Search
+            </a>
+            <a href="/manage">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M10.3246 4.31731C10.751 2.5609 13.249 2.5609 13.6754 4.31731C13.9508 5.45193 15.2507 5.99038 16.2478 5.38285C17.7913 4.44239 19.5576 6.2087 18.6172 7.75218C18.0096 8.74925 18.5481 10.0492 19.6827 10.3246C21.4391 10.751 21.4391 13.249 19.6827 13.6754C18.5481 13.9508 18.0096 15.2507 18.6172 16.2478C19.5576 17.7913 17.7913 19.5576 16.2478 18.6172C15.2507 18.0096 13.9508 18.5481 13.6754 19.6827C13.249 21.4391 10.751 21.4391 10.3246 19.6827C10.0492 18.5481 8.74926 18.0096 7.75219 18.6172C6.2087 19.5576 4.44239 17.7913 5.38285 16.2478C5.99038 15.2507 5.45193 13.9508 4.31731 13.6754C2.5609 13.249 2.5609 10.751 4.31731 10.3246C5.45193 10.0492 5.99037 8.74926 5.38285 7.75218C4.44239 6.2087 6.2087 4.44239 7.75219 5.38285C8.74926 5.99037 10.0492 5.45193 10.3246 4.31731Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M15 12C15 13.6569 13.6569 15 12 15C10.3431 15 9 13.6569 9 12C9 10.3431 10.3431 9 12 9C13.6569 9 15 10.3431 15 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Manage
+            </a>
+        </div>
+        
+        <div class="card info-card">
+            <h2>All Stored Images</h2>
+            <p>Total images: <strong>{len(image_metadata)}</strong></p>
+        </div>
         
         <div class="image-list">
-            {image_list_html if image_metadata else "<p>No images found in the database.</p>"}
+            {image_list_html if image_metadata else '<div class="card"><p>No images found in the database.</p></div>'}
         </div>
         
-        <div style="margin-top: 30px; border-top: 1px solid #ddd; padding-top: 20px;">
-            <a href="/">Back to Home</a>
-            <a href="/reset-confirm" style="color: red; margin-left: 20px;">Reset System (Clear All Data)</a>
-        </div>
+        <a href="/reset-confirm" class="danger-button">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-right: 8px;">
+                <path d="M19 7L18.1327 19.1425C18.0579 20.1891 17.187 21 16.1378 21H7.86224C6.81296 21 5.94208 20.1891 5.86732 19.1425L5 7M10 11V17M14 11V17M15 7V4C15 3.44772 14.5523 3 14 3H10C9.44772 3 9 3.44772 9 4V7M4 7H20" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Reset System (Clear All Data)
+        </a>
     </body>
     </html>
     """)
@@ -1369,22 +1560,159 @@ async def reset_confirm():
     logger.info("Reset confirmation page accessed")
     return """
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
     <head>
-        <title>Reset System Confirmation</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>ImageMatch - Reset Confirmation</title>
         <style>
-            body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-            .warning { color: red; font-weight: bold; }
-            .section { margin-bottom: 30px; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
-            button.danger { background-color: #ff4444; color: white; padding: 10px 20px; border: none; cursor: pointer; }
-            button.cancel { background-color: #888; color: white; padding: 10px 20px; border: none; cursor: pointer; margin-right: 20px; }
-            .actions { margin-top: 30px; }
+            :root {
+                --primary-color: #4361ee;
+                --secondary-color: #3f37c9;
+                --success-color: #4CAF50;
+                --text-color: #333;
+                --light-bg: #f8f9fa;
+                --border-color: #dee2e6;
+                --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                --radius: 8px;
+                --danger-color: #dc3545;
+            }
+            
+            body { 
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                max-width: 1200px; 
+                margin: 0 auto; 
+                padding: 20px;
+                background-color: #fff;
+                color: var(--text-color);
+                line-height: 1.6;
+            }
+            
+            h1 { 
+                color: var(--primary-color);
+                font-weight: 700;
+                margin-bottom: 30px;
+                border-bottom: 2px solid var(--border-color);
+                padding-bottom: 10px;
+            }
+            
+            .card {
+                background-color: var(--light-bg);
+                padding: 25px;
+                border-radius: var(--radius);
+                margin-bottom: 30px;
+                box-shadow: var(--shadow);
+                border: 1px solid var(--border-color);
+            }
+            
+            .warning { 
+                color: var(--danger-color); 
+                font-weight: bold; 
+            }
+            
+            .warning-card {
+                background-color: rgba(220, 53, 69, 0.05);
+                border-left: 3px solid var(--danger-color);
+            }
+            
+            .actions { 
+                margin-top: 30px; 
+                display: flex;
+                flex-wrap: wrap;
+                gap: 15px;
+            }
+            
+            button {
+                display: inline-flex;
+                align-items: center;
+                padding: 10px 20px;
+                border: none;
+                cursor: pointer;
+                border-radius: var(--radius);
+                font-weight: 600;
+                transition: background-color 0.3s;
+            }
+            
+            button svg {
+                margin-right: 8px;
+            }
+            
+            button.cancel { 
+                background-color: #6c757d; 
+                color: white;
+            }
+            
+            button.cancel:hover {
+                background-color: #5a6268;
+            }
+            
+            button.danger { 
+                background-color: var(--danger-color); 
+                color: white; 
+            }
+            
+            button.danger:hover {
+                background-color: #c82333;
+            }
+            
+            .nav-bar {
+                display: flex;
+                margin-bottom: 30px;
+                border-bottom: 1px solid var(--border-color);
+                padding-bottom: 15px;
+            }
+            
+            .nav-bar a {
+                color: var(--text-color);
+                text-decoration: none;
+                margin-right: 20px;
+                font-weight: 600;
+                transition: color 0.2s;
+                display: inline-flex;
+                align-items: center;
+            }
+            
+            .nav-bar a:hover {
+                color: var(--primary-color);
+            }
+            
+            .nav-bar a svg {
+                margin-right: 6px;
+            }
         </style>
     </head>
     <body>
-        <h1>Reset System Confirmation</h1>
+        <h1>ImageMatch</h1>
         
-        <div class="section">
+        <div class="nav-bar">
+            <a href="/">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M3 12L5 10M5 10L12 3L19 10M5 10V20C5 20.5523 5.44772 21 6 21H9M19 10L21 12M19 10V20C19 20.5523 18.5523 21 18 21H15M9 21C9.55228 21 10 20.5523 10 20V16C10 15.4477 10.4477 15 11 15H13C13.5523 15 14 15.4477 14 16V20C14 20.5523 14.4477 21 15 21M9 21H15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Home
+            </a>
+            <a href="/app">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M15.5 14H14.71L14.43 13.73C15.41 12.59 16 11.11 16 9.5C16 5.91 13.09 3 9.5 3C5.91 3 3 5.91 3 9.5C3 13.09 5.91 16 9.5 16C11.11 16 12.59 15.41 13.73 14.43L14 14.71V15.5L19 20.49L20.49 19L15.5 14ZM9.5 14C7.01 14 5 11.99 5 9.5C5 7.01 7.01 5 9.5 5C11.99 5 14 7.01 14 9.5C14 11.99 11.99 14 9.5 14Z" fill="currentColor"/>
+                </svg>
+                Search
+            </a>
+            <a href="/images">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM19 19H5V5H19V19ZM13.96 12.29L11.21 15.83L9.25 13.47L6.5 17H17.5L13.96 12.29Z" fill="currentColor"/>
+                </svg>
+                All Images
+            </a>
+            <a href="/manage">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M10.3246 4.31731C10.751 2.5609 13.249 2.5609 13.6754 4.31731C13.9508 5.45193 15.2507 5.99038 16.2478 5.38285C17.7913 4.44239 19.5576 6.2087 18.6172 7.75218C18.0096 8.74925 18.5481 10.0492 19.6827 10.3246C21.4391 10.751 21.4391 13.249 19.6827 13.6754C18.5481 13.9508 18.0096 15.2507 18.6172 16.2478C19.5576 17.7913 17.7913 19.5576 16.2478 18.6172C15.2507 18.0096 13.9508 18.5481 13.6754 19.6827C13.249 21.4391 10.751 21.4391 10.3246 19.6827C10.0492 18.5481 8.74926 18.0096 7.75219 18.6172C6.2087 19.5576 4.44239 17.7913 5.38285 16.2478C5.99038 15.2507 5.45193 13.9508 4.31731 13.6754C2.5609 13.249 2.5609 10.751 4.31731 10.3246C5.45193 10.0492 5.99037 8.74926 5.38285 7.75218C4.44239 6.2087 6.2087 4.44239 7.75219 5.38285C8.74926 5.99037 10.0492 5.45193 10.3246 4.31731Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M15 12C15 13.6569 13.6569 15 12 15C10.3431 15 9 13.6569 9 12C9 10.3431 10.3431 9 12 9C13.6569 9 15 10.3431 15 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Manage
+            </a>
+        </div>
+        
+        <div class="card warning-card">
             <h2 class="warning">⚠️ WARNING: This action cannot be undone!</h2>
             <p>You are about to reset the entire ImageMatch system. This will:</p>
             <ul>
@@ -1397,8 +1725,18 @@ async def reset_confirm():
             
             <div class="actions">
                 <form action="/reset-system" method="post">
-                    <button type="button" class="cancel" onclick="window.location.href='/'">Cancel</button>
-                    <button type="submit" class="danger">Yes, Reset Everything</button>
+                    <button type="button" class="cancel" onclick="window.location.href='/'">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M18 6L6 18M6 6L18 18" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        Cancel
+                    </button>
+                    <button type="submit" class="danger">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M19 7L18.1327 19.1425C18.0579 20.1891 17.187 21 16.1378 21H7.86224C6.81296 21 5.94208 20.1891 5.86732 19.1425L5 7M10 11V17M14 11V17M15 7V4C15 3.44772 14.5523 3 14 3H10C9.44772 3 9 3.44772 9 4V7M4 7H20" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        Yes, Reset Everything
+                    </button>
                 </form>
             </div>
         </div>
