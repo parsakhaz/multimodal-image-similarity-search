@@ -1,6 +1,6 @@
 # ImageMatch: AI-Powered Image and Text Similarity Search with Automatic Captions and Multimodal Capabilities
 
-A powerful image similarity search application that leverages CLIP embeddings and ChromaDB for vector storage. This application enables finding similar images based on visual content, text descriptions, or a combination of both.
+A powerful image similarity search application that leverages CLIP embeddings and ChromaDB for vector storage. This application enables finding similar images based on visual content, text descriptions, or a combination of both
 
 ## Core Features
 
