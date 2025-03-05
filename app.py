@@ -2461,7 +2461,10 @@ async def add_filter(
     filter_query: str = Form(...),
     background_tasks: BackgroundTasks = None
 ):
-    """Add a new dynamic filter and process it on all existing images"""
+    """Add a new dynamic filter(s) and process them on all existing images
+    
+    Supports comma-separated filter queries for batch addition
+    """
     logger.info(f"Add filter request received: {filter_query}")
     
     if not moondream_model:
@@ -2483,23 +2486,33 @@ async def add_filter(
     # Load existing filters
     filters = load_filters()
     
-    # Check if filter already exists
-    if filter_query in filters:
-        logger.info(f"Filter '{filter_query}' already exists, skipping")
-        return RedirectResponse(url="/", status_code=303)
+    # Parse comma-separated filter queries
+    filter_queries = [query.strip() for query in filter_query.split(',') if query.strip()]
+    added_filters = []
     
-    # Add new filter
-    filters.append(filter_query)
-    save_filters(filters)
-    logger.info(f"Filter '{filter_query}' added successfully")
+    for single_query in filter_queries:
+        # Check if filter already exists
+        if single_query in filters:
+            logger.info(f"Filter '{single_query}' already exists, skipping")
+            continue
+        
+        # Add new filter
+        filters.append(single_query)
+        added_filters.append(single_query)
+        logger.info(f"Filter '{single_query}' added successfully")
     
-    # Process filter on all existing images in the background
-    if background_tasks:
-        logger.info(f"Starting background task to process filter on all images")
-        background_tasks.add_task(process_filter_on_all_images, filter_query)
-    else:
-        # Process immediately if background tasks are not available
-        process_filter_on_all_images(filter_query)
+    # Save all filters only once after processing all queries
+    if added_filters:
+        save_filters(filters)
+        
+        # Process each new filter on all existing images in the background
+        for new_filter in added_filters:
+            if background_tasks:
+                logger.info(f"Starting background task to process filter '{new_filter}' on all images")
+                background_tasks.add_task(process_filter_on_all_images, new_filter)
+            else:
+                # Process immediately if background tasks are not available
+                process_filter_on_all_images(new_filter)
     
     return RedirectResponse(url="/", status_code=303)
 
