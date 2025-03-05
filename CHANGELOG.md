@@ -2,6 +2,19 @@
 
 All notable changes to the ImageMatch project will be documented in this file.
 
+## [2.2.2] - 2024-03-08
+
+Added progress modal for filter processing feedback.
+
+### Added
+- Visual progress modal when adding new filters
+- Real-time progress tracking of filter application
+- Clear indication of processing status to prevent navigation during filter processing
+
+### Changed
+- Enhanced filter processing workflow with visual feedback
+- Improved user experience during background filter operations
+
 ## [2.2.1] - 2024-03-08
 
 UI consistency enhancements across application pages.

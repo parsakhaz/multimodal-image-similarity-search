@@ -196,6 +196,8 @@ Access the application at <http://localhost:8000>
 - Filter results displayed alongside search results for transparency
 - Filters automatically applied to newly uploaded images
 - Ability to process filters on all existing images
+- Progress modal with real-time tracking when applying filters
+- Visual feedback prevents interruption during filter processing
 - JSON-based storage of filter results for efficient querying
 
 ### Utility Scripts
