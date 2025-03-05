@@ -27,7 +27,7 @@ try:
     from PIL import Image
     import torch
     from fastapi import FastAPI, File, Form, UploadFile, Request, BackgroundTasks, HTTPException, Query, Depends
-    from fastapi.responses import HTMLResponse, RedirectResponse
+    from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
     from fastapi.staticfiles import StaticFiles
     import uvicorn
     from dotenv import load_dotenv
@@ -100,6 +100,9 @@ collection = None
 # Image metadata storage (in-memory for simplicity)
 # In a production app, you might want to use a proper database for this
 image_metadata = {}
+
+# Dictionary to track filter application progress
+filter_progress = {}
 
 # Load existing metadata from ChromaDB
 def load_metadata_from_chromadb():
@@ -523,7 +526,7 @@ def process_filter_on_all_images(filter_query: str) -> None:
     Args:
         filter_query: The filter query to process
     """
-    global moondream_model
+    global moondream_model, filter_progress
     
     if not moondream_model:
         logger.warning("Cannot process filter - Moondream not available")
@@ -531,9 +534,17 @@ def process_filter_on_all_images(filter_query: str) -> None:
     
     logger.info(f"Processing filter query '{filter_query}' on all images")
     all_ids = collection.get(include=[])["ids"]
-    logger.info(f"Found {len(all_ids)} images to process")
+    total_images = len(all_ids)
+    logger.info(f"Found {total_images} images to process")
     
-    for image_id in all_ids:
+    # Initialize progress tracking
+    filter_progress[filter_query] = {
+        "total_count": total_images,
+        "processed_count": 0,
+        "completed": False
+    }
+    
+    for i, image_id in enumerate(all_ids):
         try:
             # Load the encoded image
             encoded_image = load_encoded_image(image_id)
@@ -571,7 +582,12 @@ def process_filter_on_all_images(filter_query: str) -> None:
                 logger.warning(f"Skipping filter processing for {image_id} - encoded image not found")
         except Exception as e:
             logger.error(f"Error processing filter for image {image_id}: {e}")
+        
+        # Update progress
+        filter_progress[filter_query]["processed_count"] = i + 1
     
+    # Mark as completed
+    filter_progress[filter_query]["completed"] = True
     logger.info(f"Completed processing filter '{filter_query}' on all images")
 
 # Clear all data (reset function)
@@ -3543,6 +3559,27 @@ async def unified_search(
     """
     
     return HTMLResponse(final_html)
+
+@app.get("/filter-progress")
+async def get_filter_progress(filter_query: str):
+    """Get the progress of a filter being applied to all images
+    
+    Args:
+        filter_query: The filter query to check progress for
+        
+    Returns:
+        Progress information including total count, processed count, and completion status
+    """
+    global filter_progress
+    
+    if filter_query not in filter_progress:
+        return JSONResponse({
+            "total_count": 0,
+            "processed_count": 0,
+            "completed": True
+        })
+    
+    return JSONResponse(filter_progress[filter_query])
 
 # Run the application
 if __name__ == "__main__":

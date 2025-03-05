@@ -491,6 +491,19 @@
         </div>
     </section>
     
+    <!-- Progress Modal -->
+    <div id="progress-modal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 1000; align-items: center; justify-content: center;">
+        <div class="modal-content" style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); max-width: 500px; width: 90%; text-align: center;">
+            <h3 id="progress-title">Processing filter...</h3>
+            <p id="progress-message">Please wait while the filter is being applied to all images.</p>
+            <div style="margin: 20px 0; background-color: #f0f0f0; border-radius: 8px; height: 16px; overflow: hidden;">
+                <div id="progress-bar" style="width: 0%; height: 100%; background-color: #4F46E5; transition: width 0.3s ease;"></div>
+            </div>
+            <p id="progress-status">Processed <span id="progress-count">0</span> of <span id="progress-total">0</span> images</p>
+            <p style="margin-top: 20px; font-size: 0.9em; color: #666;">Please don't navigate away from this page until processing is complete.</p>
+        </div>
+    </div>
+    
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // File input handling
@@ -577,6 +590,14 @@
                 
                 const formData = new FormData(filterForm);
                 const filterButton = document.getElementById('filter-button');
+                const progressModal = document.getElementById('progress-modal');
+                const progressBar = document.getElementById('progress-bar');
+                const progressCount = document.getElementById('progress-count');
+                const progressTotal = document.getElementById('progress-total');
+                const progressTitle = document.getElementById('progress-title');
+                const progressMessage = document.getElementById('progress-message');
+                
+                // Disable button and show loading state
                 filterButton.disabled = true;
                 filterButton.innerHTML = '<svg class="spinner" width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><style>.spinner{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}</style><path d="M12 5C8.13401 5 5 8.13401 5 12H3C3 7.02944 7.02944 3 12 3V5ZM12 19C15.866 19 19 15.866 19 12H21C21 16.9706 16.9706 21 12 21V19Z" fill="white"/></svg> Processing...';
                 
@@ -621,6 +642,14 @@
                         }
                         
                         filterForm.reset();
+                        
+                        // Show progress modal
+                        progressTitle.textContent = `Processing filter: "${formData.get('filter_query')}"`;
+                        progressMessage.textContent = "Please wait while the filter is being applied to all images.";
+                        progressModal.style.display = "flex";
+                        
+                        // Start polling for progress
+                        await pollFilterProgress(formData.get('filter_query'));
                     } else {
                         filterResult.innerHTML = `
                             <div style="margin-top: 20px; padding: 15px; background-color: rgba(244, 67, 54, 0.1); color: #d32f2f; border-radius: 8px;">
@@ -639,6 +668,51 @@
                     filterButton.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 4V20M20 12L4 12" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Add Filter';
                 }
             });
+            
+            // Function to poll for filter processing progress
+            async function pollFilterProgress(filterQuery) {
+                const progressModal = document.getElementById('progress-modal');
+                const progressBar = document.getElementById('progress-bar');
+                const progressCount = document.getElementById('progress-count');
+                const progressTotal = document.getElementById('progress-total');
+                const progressTitle = document.getElementById('progress-title');
+                const progressMessage = document.getElementById('progress-message');
+                
+                let completed = false;
+                
+                while (!completed) {
+                    try {
+                        const response = await fetch(`/filter-progress?filter_query=${encodeURIComponent(filterQuery)}`);
+                        const data = await response.json();
+                        
+                        // Update progress UI
+                        progressCount.textContent = data.processed_count;
+                        progressTotal.textContent = data.total_count;
+                        
+                        const percentage = data.total_count > 0 ? (data.processed_count / data.total_count) * 100 : 0;
+                        progressBar.style.width = `${percentage}%`;
+                        
+                        if (data.completed) {
+                            progressTitle.textContent = "Processing Complete";
+                            progressMessage.textContent = `Successfully applied filter "${filterQuery}" to all images.`;
+                            setTimeout(() => {
+                                progressModal.style.display = "none";
+                            }, 2000);
+                            completed = true;
+                        } else {
+                            // Wait for a moment before polling again
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                        }
+                    } catch (error) {
+                        console.error("Error polling for progress:", error);
+                        progressMessage.textContent = "Error tracking progress. Processing continues in the background.";
+                        setTimeout(() => {
+                            progressModal.style.display = "none";
+                        }, 3000);
+                        completed = true;
+                    }
+                }
+            }
         });
     </script>
 </body>
