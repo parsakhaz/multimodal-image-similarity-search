@@ -2,6 +2,26 @@
 
 All notable changes to the ImageMatch project will be documented in this file.
 
+## [2.3.0] - 2024-03-10
+
+Added folder upload functionality for batch image processing.
+
+### Added
+- Folder upload feature allowing users to select and upload entire directories of images
+- Batch processing system to handle multiple images efficiently
+- Progress tracking UI with real-time feedback during folder uploads
+- Blocking overlay to prevent interruptions during batch processing
+- Support for nested directory structures during folder uploads
+
+### Changed
+- Enhanced the manage.html interface with a dedicated folder upload section
+- Improved UI feedback during bulk uploads with progress bar and counters
+- Optimized backend to process uploaded images in manageable batches
+
+### Fixed
+- Directory structure issues when handling nested folders during upload
+- Proper extraction of base filenames regardless of source folder structure
+
 ## [2.2.2] - 2024-03-08
 
 Added progress modal for filter processing feedback.

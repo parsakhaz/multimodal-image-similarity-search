@@ -103,12 +103,19 @@ Access the application at <http://localhost:8000>
    - Automatic duplicate detection prevents redundant storage
    - AI-generated captions enhance searchability
 
-2. **Batch Upload**:
+2. **Folder Upload**:
+   - Upload entire directories using the folder selection option
+   - Process multiple images in a single operation
+   - View real-time progress tracking during upload
+   - Handle nested directory structures seamlessly
+   - Apply background removal to all images in the folder
+
+3. **Batch Upload**:
    - Visit `/upload-samples` to process multiple images
    - Automatically handles images from the `images` directory
    - Provides detailed upload status reports
 
-3. **Database Management**:
+4. **Database Management**:
    - Browse all stored images at `/images`
    - View and edit image metadata
    - Monitor content-based hash IDs

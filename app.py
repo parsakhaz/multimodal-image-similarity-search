@@ -3581,6 +3581,81 @@ async def get_filter_progress(filter_query: str):
     
     return JSONResponse(filter_progress[filter_query])
 
+@app.post("/upload-folder")
+async def upload_folder(
+    files: List[UploadFile] = File(...),
+    remove_bg: bool = Form(False),
+    request: Request = None
+):
+    """Upload and process multiple images from a folder"""
+    logger.info(f"Folder upload request received with {len(files)} files")
+    
+    results = []
+    processed_count = 0
+    failed_count = 0
+    
+    for file in files:
+        try:
+            # Skip non-image files
+            if not file.content_type or 'image' not in file.content_type:
+                logger.warning(f"Skipping non-image file: {file.filename} with content type {file.content_type}")
+                failed_count += 1
+                continue
+                
+            logger.info(f"Processing file {processed_count + 1}/{len(files)}: {file.filename}")
+            
+            # Extract just the base filename, ignoring any subdirectories
+            base_filename = os.path.basename(file.filename)
+            
+            # Read file content
+            content = await file.read()
+            
+            # Handle image opening with error handling
+            try:
+                # Try opening the image directly
+                image = Image.open(BytesIO(content))
+                
+                # Convert to RGB if needed
+                if image.mode != 'RGB':
+                    image = image.convert('RGB')
+                    
+            except Exception as e:
+                logger.error(f"Error opening image {file.filename}: {str(e)}")
+                failed_count += 1
+                continue
+            
+            # Save original image using just the base filename
+            original_path = f"static/uploads/{base_filename}"
+            with open(original_path, "wb") as f:
+                f.write(content)
+            
+            # Process image - using AI-generated description since this is a batch upload
+            # We don't pass any manual description or metadata
+            result, is_new_upload = process_image(image, base_filename, None, None, remove_bg)
+            
+            results.append({
+                "filename": file.filename,
+                "id": result['id'],
+                "is_new_upload": is_new_upload,
+                "description": result.get('description', ''),
+                "custom_metadata": result.get('custom_metadata', '')
+            })
+            
+            processed_count += 1
+            
+            # Update progress in a real system, you might use WebSockets for this
+            
+        except Exception as e:
+            logger.error(f"Error processing file {file.filename}: {str(e)}")
+            failed_count += 1
+            
+    return {
+        "success": True,
+        "processed": processed_count,
+        "failed": failed_count,
+        "results": results
+    }
+
 # Run the application
 if __name__ == "__main__":
     logger.info("Starting uvicorn server on 0.0.0.0:8000")
