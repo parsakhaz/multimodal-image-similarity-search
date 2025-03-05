@@ -2728,17 +2728,17 @@ async def search_by_multimodal(
             <div class="card result">
                 <div class="image-details">
                     <div class="image-preview">
-                        <img src="/{r['processed_path']}" alt="{r['description']}">
-                        <p class="similarity">Similarity: {similarity_pct}</p>
+                <img src="/{r['processed_path']}" alt="{r['description']}">
+                <p class="similarity">Similarity: {similarity_pct}</p>
                     </div>
                     <div class="image-metadata">
                         <h3>{r['description']}</h3>
                         <p><strong>ID:</strong> <span class="metadata-value">{r['id']}</span></p>
-                        {filter_display}
-                    </div>
-                </div>
+                {filter_display}
             </div>
-            """
+        </div>
+    </div>
+    """
     
     # Combine query image and results with styling
     final_html = f"""
@@ -3004,8 +3004,8 @@ async def search_by_multimodal(
             
             <div class="search-results">
                 {result_html}
-            </div>
-            
+        </div>
+        
             <a href="/images" class="action-button" style="display: inline-flex; align-items: center; background-color: var(--primary-color); color: white; padding: 8px 16px; text-decoration: none; border-radius: 8px; margin-top: 20px;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-right: 8px;">
                     <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM19 19H5V5H19V19ZM13.96 12.29L11.21 15.83L9.25 13.47L6.5 17H17.5L13.96 12.29Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -3125,29 +3125,29 @@ async def unified_search(
         # Image-only search
         try:
             image = Image.open(BytesIO(file_content))
-            
-            # Handle image mode conversion if needed
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
-            
-            # Remove background (optional for search)
-            try:
-                clean_image = remove_background(image)
-            except Exception as e:
-                logger.warning(f"Background removal failed, using original image: {str(e)}")
-                clean_image = image
-            
-            # Generate embedding and search
-            embeddings = generate_clip_embedding(clean_image)
-            results = search_similar(embeddings["image"][0])
-            
-            # Create HTML for the query image display
-            query_image_html = f"""
-            <div class="query-image">
-                <h3>Query Image</h3>
+        
+        # Handle image mode conversion if needed
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        
+        # Remove background (optional for search)
+        try:
+            clean_image = remove_background(image)
+        except Exception as e:
+            logger.warning(f"Background removal failed, using original image: {str(e)}")
+            clean_image = image
+        
+        # Generate embedding and search
+        embeddings = generate_clip_embedding(clean_image)
+        results = search_similar(embeddings["image"][0])
+        
+        # Create HTML for the query image display
+        query_image_html = f"""
+        <div class="query-image">
+            <h3>Query Image</h3>
                 <img src="data:image/jpeg;base64,{base64.b64encode(file_content).decode()}">
-            </div>
-            """
+        </div>
+        """
         except Exception as e:
             logger.error(f"Error processing image file: {str(e)}")
             return HTMLResponse(f"<p>Error processing image: {str(e)}</p>")
@@ -3160,32 +3160,32 @@ async def unified_search(
         # Multimodal search (combine image and text)
         try:
             image = Image.open(BytesIO(file_content))
-            
-            # Handle image mode conversion if needed
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
-            
-            # Weight validation
-            weight_image = min(max(weight_image, 0.0), 1.0)  # Clamp between 0 and 1
-            
-            # Perform multimodal search
-            results = search_multimodal(image, query, weight_image)
-            
-            # Create HTML for the query image display
-            query_image_html = f"""
-            <div class="query-image">
-                <h3>Query Image</h3>
+        
+        # Handle image mode conversion if needed
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        
+        # Weight validation
+        weight_image = min(max(weight_image, 0.0), 1.0)  # Clamp between 0 and 1
+        
+        # Perform multimodal search
+        results = search_multimodal(image, query, weight_image)
+        
+        # Create HTML for the query image display
+        query_image_html = f"""
+        <div class="query-image">
+            <h3>Query Image</h3>
                 <img src="data:image/jpeg;base64,{base64.b64encode(file_content).decode()}">
-                <p>Text Query: "{query}" (Image Weight: {weight_image})</p>
-            </div>
-            """
+            <p>Text Query: "{query}" (Image Weight: {weight_image})</p>
+        </div>
+        """
         except Exception as e:
             logger.error(f"Error processing image file for multimodal search: {str(e)}")
             return HTMLResponse(f"<p>Error processing image for multimodal search: {str(e)}</p>")
     else:
         # No valid search parameters
         if not query and not has_valid_file:
-            return HTMLResponse("<p>Please provide an image, text, or both to search.</p>")
+        return HTMLResponse("<p>Please provide an image, text, or both to search.</p>")
     
     # Filter results based on selected filters
     if filters:
@@ -3252,13 +3252,13 @@ async def unified_search(
             <div class="card result">
                 <div class="image-details">
                     <div class="image-preview">
-                        <img src="/{r['processed_path']}" alt="{r['description']}">
-                        <p class="similarity">Similarity: {similarity_pct}</p>
+                <img src="/{r['processed_path']}" alt="{r['description']}">
+                <p class="similarity">Similarity: {similarity_pct}</p>
                     </div>
                     <div class="image-metadata">
                         <h3>{r['description']}</h3>
                         <p><strong>ID:</strong> <span class="metadata-value">{r['id']}</span></p>
-                        {filter_display}
+                {filter_display}
                     </div>
                 </div>
             </div>
@@ -3524,11 +3524,11 @@ async def unified_search(
                 <h2>Search Results</h2>
             </div>
 
-            {query_image_html}
+    {query_image_html}
             {f'<div class="applied-filters"><h3>Applied Filters</h3><ul>' + ''.join([f'<li>{f}</li>' for f in filters]) + '</ul></div>' if filters else ''}
             
             <div class="search-results">
-                {result_html}
+    {result_html}
             </div>
             
             <a href="/images" class="action-button" style="display: inline-flex; align-items: center; background-color: var(--primary-color); color: white; padding: 8px 16px; text-decoration: none; border-radius: 8px; margin-top: 20px;">
