@@ -2728,537 +2728,13 @@ async def search_by_multimodal(
             <div class="card result">
                 <div class="image-details">
                     <div class="image-preview">
-                <img src="/{r['processed_path']}" alt="{r['description']}">
-                <p class="similarity">Similarity: {similarity_pct}</p>
+                        <img src="/{r['processed_path']}" alt="{r['description']}">
+                        <p class="similarity">Similarity: {similarity_pct}</p>
                     </div>
                     <div class="image-metadata">
                         <h3>{r['description']}</h3>
                         <p><strong>ID:</strong> <span class="metadata-value">{r['id']}</span></p>
-                {filter_display}
-            </div>
-        </div>
-    </div>
-    """
-    
-    # Combine query image and results with styling
-    final_html = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>ImageMatch - Search Results</title>
-        <style>
-            :root {{
-                --primary-color: #4361ee;
-                --secondary-color: #3f37c9;
-                --success-color: #4CAF50;
-                --error-color: #F44336;
-                --warning-color: #FFC107;
-                --text-color: #333;
-                --light-bg: #f8f9fa;
-                --border-color: #dee2e6;
-                --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-                --radius: 8px;
-            }}
-            
-            body {{ 
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                max-width: 1200px; 
-                margin: 0 auto; 
-                padding: 20px;
-                background-color: #fff;
-                color: var(--text-color);
-                line-height: 1.6;
-            }}
-            
-            h1 {{ 
-                color: var(--primary-color);
-                font-weight: 700;
-                margin-bottom: 30px;
-                border-bottom: 2px solid var(--border-color);
-                padding-bottom: 10px;
-            }}
-
-            h3 {{
-                margin-top: 0;
-                color: var(--primary-color);
-            }}
-            
-            .card {{
-                background-color: var(--light-bg);
-                padding: 25px;
-                border-radius: var(--radius);
-                margin-bottom: 30px;
-                box-shadow: var(--shadow);
-                border: 1px solid var(--border-color);
-                height: 100%;
-                display: flex;
-                flex-direction: column;
-            }}
-            
-            .search-results {{
-                display: grid;
-                grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-                gap: 25px;
-            }}
-            
-            @media (min-width: 768px) {{
-                .search-results {{
-                    grid-template-columns: repeat(2, 1fr);
-                }}
-            }}
-            
-            @media (min-width: 1024px) {{
-                .search-results {{
-                    grid-template-columns: repeat(3, 1fr);
-                }}
-            }}
-            
-            .image-details {{
-                display: flex;
-                flex-direction: column;
-                height: 100%;
-            }}
-            
-            .image-preview {{
-                margin-bottom: 15px;
-            }}
-            
-            .image-metadata {{
-                flex: 1;
-            }}
-            
-            .image-preview img {{
-                width: 100%;
-                border-radius: var(--radius);
-                box-shadow: var(--shadow);
-                object-fit: cover;
-                aspect-ratio: 4/3;
-            }}
-            
-            .query-image {{
-                margin-bottom: 20px;
-            }}
-            
-            .query-image img {{
-                max-width: 200px;
-                border-radius: var(--radius);
-                box-shadow: var(--shadow);
-            }}
-            
-            .similarity {{
-                margin-top: 10px;
-                font-weight: bold;
-                color: var(--primary-color);
-            }}
-            
-            .applied-filters {{
-                background-color: rgba(67, 97, 238, 0.05);
-                padding: 15px;
-                border-radius: var(--radius);
-                margin-bottom: 20px;
-                border-left: 3px solid var(--primary-color);
-            }}
-            
-            .applied-filters h3 {{
-                margin-top: 0;
-                color: var(--primary-color);
-            }}
-            
-            .applied-filters ul {{
-                margin: 0;
-                padding-left: 20px;
-            }}
-            
-            .filter-results {{
-                background-color: rgba(67, 97, 238, 0.05);
-                padding: 15px;
-                border-radius: var(--radius);
-                margin-top: 15px;
-            }}
-            
-            .filter-results h4 {{
-                margin-top: 0;
-                color: var(--primary-color);
-            }}
-            
-            .filter-results-list {{
-                margin: 0;
-                padding-left: 0;
-                list-style-type: none;
-            }}
-            
-            .filter-results-list li {{
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                margin-bottom: 5px;
-                padding-bottom: 5px;
-                border-bottom: 1px solid rgba(0,0,0,0.05);
-            }}
-            
-            .filter-results-list li:last-child {{
-                margin-bottom: 0;
-                padding-bottom: 0;
-                border-bottom: none;
-            }}
-            
-            .filter-icon {{
-                margin-left: 10px;
-            }}
-            
-            .filter-yes {{
-                color: var(--success-color);
-            }}
-            
-            .filter-no {{
-                color: var(--error-color);
-            }}
-            
-            .filter-unknown {{
-                color: var(--warning-color);
-            }}
-            
-            .metadata-value {{
-                font-weight: normal;
-                color: #666;
-            }}
-            
-            .nav-bar {{
-                display: flex;
-                margin-bottom: 30px;
-                border-bottom: 1px solid var(--border-color);
-                padding-bottom: 15px;
-            }}
-            
-            .nav-bar a {{
-                color: var(--text-color);
-                text-decoration: none;
-                margin-right: 20px;
-                font-weight: 600;
-                transition: color 0.2s;
-                display: inline-flex;
-                align-items: center;
-            }}
-            
-            .nav-bar a:hover {{
-                color: var(--primary-color);
-            }}
-            
-            .nav-bar a svg {{
-                margin-right: 6px;
-            }}
-            
-            @media (max-width: 768px) {{
-                body {{
-                    padding: 15px;
-                }}
-                
-                .card {{
-                    padding: 20px;
-                }}
-            }}
-        </style>
-    </head>
-    <body>
-        <h1>ImageMatch</h1>
-        
-        <div class="nav-bar">
-            <a href="/">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M3 12L5 10M5 10L12 3L19 10M5 10V20C5 20.5523 5.44772 21 6 21H9M19 10L21 12M19 10V20C19 20.5523 18.5523 21 18 21H15M9 21C9.55228 21 10 20.5523 10 20V16C10 15.4477 10.4477 15 11 15H13C13.5523 15 14 15.4477 14 16V20C14 20.5523 14.4477 21 15 21M9 21H15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                Home
-            </a>
-            <a href="/app">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M15.5 14H14.71L14.43 13.73C15.41 12.59 16 11.11 16 9.5C16 5.91 13.09 3 9.5 3C5.91 3 3 5.91 3 9.5C3 13.09 5.91 16 9.5 16C11.11 16 12.59 15.41 13.73 14.43L14 14.71V15.5L19 20.49L20.49 19L15.5 14ZM9.5 14C7.01 14 5 11.99 5 9.5C5 7.01 7.01 5 9.5 5C11.99 5 14 7.01 14 9.5C14 11.99 11.99 14 9.5 14Z" fill="currentColor"/>
-                </svg>
-                Search
-            </a>
-            <a href="/images">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM19 19H5V5H19V19ZM13.96 12.29L11.21 15.83L9.25 13.47L6.5 17H17.5L13.96 12.29Z" fill="currentColor"/>
-                </svg>
-                All Images
-            </a>
-            <a href="/manage">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M10.3246 4.31731C10.751 2.5609 13.249 2.5609 13.6754 4.31731C13.9508 5.45193 15.2507 5.99038 16.2478 5.38285C17.7913 4.44239 19.5576 6.2087 18.6172 7.75218C18.0096 8.74925 18.5481 10.0492 19.6827 10.3246C21.4391 10.751 21.4391 13.249 19.6827 13.6754C18.5481 13.9508 18.0096 15.2507 18.6172 16.2478C19.5576 17.7913 17.7913 19.5576 16.2478 18.6172C15.2507 18.0096 13.9508 18.5481 13.6754 19.6827C13.249 21.4391 10.751 21.4391 10.3246 19.6827C10.0492 18.5481 8.74926 18.0096 7.75219 18.6172C6.2087 19.5576 4.44239 17.7913 5.38285 16.2478C5.99038 15.2507 5.45193 13.9508 4.31731 13.6754C2.5609 13.249 2.5609 10.751 4.31731 10.3246C5.45193 10.0492 5.99037 8.74926 5.38285 7.75218C4.44239 6.2087 6.2087 4.44239 7.75219 5.38285C8.74926 5.99037 10.0492 5.45193 10.3246 4.31731Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M15 12C15 13.6569 13.6569 15 12 15C10.3431 15 9 13.6569 9 12C9 10.3431 10.3431 9 12 9C13.6569 9 15 10.3431 15 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                Manage
-            </a>
-        </div>
-        
-        <section>
-            <div class="section-header">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M15.5 14H14.71L14.43 13.73C15.41 12.59 16 11.11 16 9.5C16 5.91 13.09 3 9.5 3C5.91 3 3 5.91 3 9.5C3 13.09 5.91 16 9.5 16C11.11 16 12.59 15.41 13.73 14.43L14 14.71V15.5L19 20.49L20.49 19L15.5 14ZM9.5 14C7.01 14 5 11.99 5 9.5C5 7.01 7.01 5 9.5 5C11.99 5 14 7.01 14 9.5C14 11.99 11.99 14 9.5 14Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                <h2>Search Results</h2>
-            </div>
-
-            {f'<div class="applied-filters"><h3>Applied Filters</h3><ul>' + ''.join([f'<li>{f}</li>' for f in filters]) + '</ul></div>' if filters else ''}
-            
-            <div class="search-results">
-                {result_html}
-        </div>
-        
-            <a href="/images" class="action-button" style="display: inline-flex; align-items: center; background-color: var(--primary-color); color: white; padding: 8px 16px; text-decoration: none; border-radius: 8px; margin-top: 20px;">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-right: 8px;">
-                    <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM19 19H5V5H19V19ZM13.96 12.29L11.21 15.83L9.25 13.47L6.5 17H17.5L13.96 12.29Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                Back to All Images
-            </a>
-        </section>
-    </body>
-    </html>
-    """
-    
-    return HTMLResponse(final_html)
-
-# Initialize database on startup
-@app.on_event("startup")
-def startup_event():
-    # Initialize ChromaDB
-    logger.info("Application startup: initializing ChromaDB connection")
-    try:
-        global collection
-        collection = init_chromadb()
-        # ChromaDB doesn't have a direct parallel to describe_index_stats
-        # but we can get some basic info about the collection
-        all_ids = collection.get(include=[])["ids"]
-        logger.info(f"Successfully connected to ChromaDB collection: {COLLECTION_NAME}")
-        logger.info(f"Collection contains {len(all_ids)} vectors")
-        
-        # Load metadata from ChromaDB
-        load_metadata_from_chromadb()
-        
-    except Exception as e:
-        logger.error(f"Warning: Could not initialize ChromaDB: {str(e)}")
-        logger.error("Make sure the ChromaDB directory is writable")
-    
-    # Initialize or verify Moondream
-    global moondream_model
-    moondream_key = os.getenv("MOONDREAM_API_KEY")
-    
-    if moondream_key:
-        logger.info(f"✅ Moondream API key found and has length {len(moondream_key)}")
-        logger.info(f"Moondream API key begins with: {moondream_key[:8]}...")
-        
-        # Check if moondream_model was successfully initialized
-        if not moondream_model:
-            logger.info("Moondream model not initialized yet, attempting initialization now...")
-            try:
-                import moondream as md
-                moondream_model = md.vl(api_key=moondream_key)
-                logger.info("✅ Moondream model successfully initialized during startup")
-            except Exception as e:
-                logger.error(f"⚠️ Failed to initialize Moondream model during startup: {e}")
-        else:
-            logger.info("✅ Moondream model was already initialized")
-    else:
-        logger.warning("""
-        ---------------------------------------------------------------------------------
-        MOONDREAM_API_KEY is not set in your .env file. 
-        AI image captioning will be disabled.
-        
-        To enable automatic image captioning:
-        1. Get an API key from Moondream Cloud (https://console.moondream.ai/)
-        2. Add MOONDREAM_API_KEY=your-api-key to your .env file
-        ---------------------------------------------------------------------------------
-        """)
-
-# Add this near other global variables after app initialization
-templates = Jinja2Templates(directory="templates")
-
-@app.get("/app", response_class=HTMLResponse)
-async def main_app(request: Request):
-    """Serve the new dynamic UI using htmx"""
-    filters = load_filters()
-    return templates.TemplateResponse("main.html", {"request": request, "filters": filters})
-
-@app.get("/manage", response_class=HTMLResponse)
-async def manage_app(request: Request):
-    """Serve the page for managing filters and uploads"""
-    filters = load_filters()
-    return templates.TemplateResponse("manage.html", {"request": request, "filters": filters})
-
-@app.post("/search")
-async def unified_search(
-    file: UploadFile = File(None),
-    query: str = Form(None),
-    weight_image: float = Form(0.5),
-    filters: List[str] = Form(None)
-):
-    """Unified search endpoint that handles all search types (image, text, multimodal)
-    and returns partial HTML for htmx to update the UI."""
-    file_name = file.filename if file else None
-    logger.info(f"Unified search request received. Query: '{query}', File: {file_name}")
-    if filters:
-        logger.info(f"Filters specified: {filters}")
-    
-    filters = filters or []
-    results = []
-    query_image_html = ""
-    
-    # Check if file is valid and has content
-    has_valid_file = False
-    file_content = None
-    
-    if file is not None:
-        try:
-            file_content = await file.read()
-            # Only consider the file valid if it has content
-            has_valid_file = len(file_content) > 0
-            # Reset file cursor for further reads if needed
-            if has_valid_file:
-                await file.seek(0)
-        except Exception as e:
-            logger.error(f"Error reading file: {str(e)}")
-            has_valid_file = False
-    
-    # Determine the type of search based on provided parameters
-    if has_valid_file and not query:
-        # Image-only search
-        try:
-            image = Image.open(BytesIO(file_content))
-        
-        # Handle image mode conversion if needed
-        if image.mode != 'RGB':
-            image = image.convert('RGB')
-        
-        # Remove background (optional for search)
-        try:
-            clean_image = remove_background(image)
-        except Exception as e:
-            logger.warning(f"Background removal failed, using original image: {str(e)}")
-            clean_image = image
-        
-        # Generate embedding and search
-        embeddings = generate_clip_embedding(clean_image)
-        results = search_similar(embeddings["image"][0])
-        
-        # Create HTML for the query image display
-        query_image_html = f"""
-        <div class="query-image">
-            <h3>Query Image</h3>
-                <img src="data:image/jpeg;base64,{base64.b64encode(file_content).decode()}">
-        </div>
-        """
-        except Exception as e:
-            logger.error(f"Error processing image file: {str(e)}")
-            return HTMLResponse(f"<p>Error processing image: {str(e)}</p>")
-        
-    elif query and not has_valid_file:
-        # Text-only search
-        results = search_by_text(query)
-        
-    elif has_valid_file and query:
-        # Multimodal search (combine image and text)
-        try:
-            image = Image.open(BytesIO(file_content))
-        
-        # Handle image mode conversion if needed
-        if image.mode != 'RGB':
-            image = image.convert('RGB')
-        
-        # Weight validation
-        weight_image = min(max(weight_image, 0.0), 1.0)  # Clamp between 0 and 1
-        
-        # Perform multimodal search
-        results = search_multimodal(image, query, weight_image)
-        
-        # Create HTML for the query image display
-        query_image_html = f"""
-        <div class="query-image">
-            <h3>Query Image</h3>
-                <img src="data:image/jpeg;base64,{base64.b64encode(file_content).decode()}">
-            <p>Text Query: "{query}" (Image Weight: {weight_image})</p>
-        </div>
-        """
-        except Exception as e:
-            logger.error(f"Error processing image file for multimodal search: {str(e)}")
-            return HTMLResponse(f"<p>Error processing image for multimodal search: {str(e)}</p>")
-    else:
-        # No valid search parameters
-        if not query and not has_valid_file:
-        return HTMLResponse("<p>Please provide an image, text, or both to search.</p>")
-    
-    # Filter results based on selected filters
-    if filters:
-        logger.info(f"Filtering results based on {len(filters)} filters")
-        filtered_results = []
-        for r in results:
-            # Get filter results from JSON string
-            filter_results = {}
-            if "filter_results_json" in r:
-                try:
-                    filter_results = json.loads(r["filter_results_json"])
-                except (json.JSONDecodeError, TypeError):
-                    logger.warning(f"Error parsing filter_results_json for image {r['id']}")
-            
-            # Check if this result matches all the selected filters
-            if all(filter_results.get(f, "").lower().strip() == "yes" for f in filters):
-                filtered_results.append(r)
-        
-        # Update results with filtered version
-        logger.info(f"Results filtered: {len(results)} -> {len(filtered_results)}")
-        results = filtered_results
-    
-    # Format results for display
-    result_html = ""
-    if not results:
-        result_html = "<p>No matching images found. Try different search criteria or filters.</p>"
-    else:
-        for r in results:
-            similarity_pct = f"{r['similarity'] * 100:.1f}%"
-            
-            # Add filter results to display if any filters were applied
-            filter_display = ""
-            if filters and "filter_results_json" in r:
-                try:
-                    filter_results = json.loads(r["filter_results_json"])
-                    filter_display = "<div class='filter-results'><h4>Filter Results</h4><ul class='filter-results-list'>"
-                    for f in filters:
-                        answer = filter_results.get(f, "unknown")
-                        if isinstance(answer, str):
-                            answer = answer.strip()
-                        display_text = format_filter_for_display(f)
-                        
-                        # Replace yes/no with SVG icons
-                        icon_html = ""
-                        if answer.lower() == "yes":
-                            icon_html = """<svg class="filter-icon filter-yes" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M5 13L9 17L19 7" stroke="#4CAF50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>"""
-                        elif answer.lower() == "no":
-                            icon_html = """<svg class="filter-icon filter-no" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M6 18L18 6M6 6L18 18" stroke="#F44336" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>"""
-                        else:
-                            icon_html = """<svg class="filter-icon filter-unknown" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M12 16V16.01M12 13C12.5523 13 13 12.5523 13 12C13 11.4477 12.5523 11 12 11C11.4477 11 11 11.4477 11 12C11 12.5523 11.4477 13 12 13ZM12 13V8M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="#FFC107" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>"""
-                        
-                        filter_display += f"<li><strong>{display_text}</strong> {icon_html}</li>"
-                    filter_display += "</ul></div>"
-                except (json.JSONDecodeError, TypeError):
-                    logger.warning(f"Error parsing filter_results_json for display, image {r['id']}")
-            
-            result_html += f"""
-            <div class="card result">
-                <div class="image-details">
-                    <div class="image-preview">
-                <img src="/{r['processed_path']}" alt="{r['description']}">
-                <p class="similarity">Similarity: {similarity_pct}</p>
-                    </div>
-                    <div class="image-metadata">
-                        <h3>{r['description']}</h3>
-                        <p><strong>ID:</strong> <span class="metadata-value">{r['id']}</span></p>
-                {filter_display}
+                        {filter_display}
                     </div>
                 </div>
             </div>
@@ -3524,11 +3000,535 @@ async def unified_search(
                 <h2>Search Results</h2>
             </div>
 
-    {query_image_html}
             {f'<div class="applied-filters"><h3>Applied Filters</h3><ul>' + ''.join([f'<li>{f}</li>' for f in filters]) + '</ul></div>' if filters else ''}
             
             <div class="search-results">
-    {result_html}
+                {result_html}
+            </div>
+            
+            <a href="/images" class="action-button" style="display: inline-flex; align-items: center; background-color: var(--primary-color); color: white; padding: 8px 16px; text-decoration: none; border-radius: 8px; margin-top: 20px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-right: 8px;">
+                    <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM19 19H5V5H19V19ZM13.96 12.29L11.21 15.83L9.25 13.47L6.5 17H17.5L13.96 12.29Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Back to All Images
+            </a>
+        </section>
+    </body>
+    </html>
+    """
+    
+    return HTMLResponse(final_html)
+
+# Initialize database on startup
+@app.on_event("startup")
+def startup_event():
+    # Initialize ChromaDB
+    logger.info("Application startup: initializing ChromaDB connection")
+    try:
+        global collection
+        collection = init_chromadb()
+        # ChromaDB doesn't have a direct parallel to describe_index_stats
+        # but we can get some basic info about the collection
+        all_ids = collection.get(include=[])["ids"]
+        logger.info(f"Successfully connected to ChromaDB collection: {COLLECTION_NAME}")
+        logger.info(f"Collection contains {len(all_ids)} vectors")
+        
+        # Load metadata from ChromaDB
+        load_metadata_from_chromadb()
+        
+    except Exception as e:
+        logger.error(f"Warning: Could not initialize ChromaDB: {str(e)}")
+        logger.error("Make sure the ChromaDB directory is writable")
+    
+    # Initialize or verify Moondream
+    global moondream_model
+    moondream_key = os.getenv("MOONDREAM_API_KEY")
+    
+    if moondream_key:
+        logger.info(f"✅ Moondream API key found and has length {len(moondream_key)}")
+        logger.info(f"Moondream API key begins with: {moondream_key[:8]}...")
+        
+        # Check if moondream_model was successfully initialized
+        if not moondream_model:
+            logger.info("Moondream model not initialized yet, attempting initialization now...")
+            try:
+                import moondream as md
+                moondream_model = md.vl(api_key=moondream_key)
+                logger.info("✅ Moondream model successfully initialized during startup")
+            except Exception as e:
+                logger.error(f"⚠️ Failed to initialize Moondream model during startup: {e}")
+        else:
+            logger.info("✅ Moondream model was already initialized")
+    else:
+        logger.warning("""
+        ---------------------------------------------------------------------------------
+        MOONDREAM_API_KEY is not set in your .env file. 
+        AI image captioning will be disabled.
+        
+        To enable automatic image captioning:
+        1. Get an API key from Moondream Cloud (https://console.moondream.ai/)
+        2. Add MOONDREAM_API_KEY=your-api-key to your .env file
+        ---------------------------------------------------------------------------------
+        """)
+
+# Add this near other global variables after app initialization
+templates = Jinja2Templates(directory="templates")
+
+@app.get("/app", response_class=HTMLResponse)
+async def main_app(request: Request):
+    """Serve the new dynamic UI using htmx"""
+    filters = load_filters()
+    return templates.TemplateResponse("main.html", {"request": request, "filters": filters})
+
+@app.get("/manage", response_class=HTMLResponse)
+async def manage_app(request: Request):
+    """Serve the page for managing filters and uploads"""
+    filters = load_filters()
+    return templates.TemplateResponse("manage.html", {"request": request, "filters": filters})
+
+@app.post("/search")
+async def unified_search(
+    file: UploadFile = File(None),
+    query: str = Form(None),
+    weight_image: float = Form(0.5),
+    filters: List[str] = Form(None)
+):
+    """Unified search endpoint that handles all search types (image, text, multimodal)
+    and returns partial HTML for htmx to update the UI."""
+    file_name = file.filename if file else None
+    logger.info(f"Unified search request received. Query: '{query}', File: {file_name}")
+    if filters:
+        logger.info(f"Filters specified: {filters}")
+    
+    filters = filters or []
+    results = []
+    query_image_html = ""
+    
+    # Check if file is valid and has content
+    has_valid_file = False
+    file_content = None
+    
+    if file is not None:
+        try:
+            file_content = await file.read()
+            # Only consider the file valid if it has content
+            has_valid_file = len(file_content) > 0
+            # Reset file cursor for further reads if needed
+            if has_valid_file:
+                await file.seek(0)
+        except Exception as e:
+            logger.error(f"Error reading file: {str(e)}")
+            has_valid_file = False
+    
+    # Determine the type of search based on provided parameters
+    if has_valid_file and not query:
+        # Image-only search
+        try:
+            image = Image.open(BytesIO(file_content))
+            
+            # Handle image mode conversion if needed
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+            
+            # Remove background (optional for search)
+            try:
+                clean_image = remove_background(image)
+            except Exception as e:
+                logger.warning(f"Background removal failed, using original image: {str(e)}")
+                clean_image = image
+            
+            # Generate embedding and search
+            embeddings = generate_clip_embedding(clean_image)
+            results = search_similar(embeddings["image"][0])
+            
+            # Create HTML for the query image display
+            query_image_html = f"""
+            <div class="query-image">
+                <h3>Query Image</h3>
+                <img src="data:image/jpeg;base64,{base64.b64encode(file_content).decode()}">
+            </div>
+            """
+        except Exception as e:
+            logger.error(f"Error processing image file: {str(e)}")
+            return HTMLResponse(f"<p>Error processing image: {str(e)}</p>")
+        
+    elif query and not has_valid_file:
+        # Text-only search
+        results = search_by_text(query)
+        
+    elif has_valid_file and query:
+        # Multimodal search (combine image and text)
+        try:
+            image = Image.open(BytesIO(file_content))
+            
+            # Handle image mode conversion if needed
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+            
+            # Weight validation
+            weight_image = min(max(weight_image, 0.0), 1.0)  # Clamp between 0 and 1
+            
+            # Perform multimodal search
+            results = search_multimodal(image, query, weight_image)
+            
+            # Create HTML for the query image display
+            query_image_html = f"""
+            <div class="query-image">
+                <h3>Query Image</h3>
+                <img src="data:image/jpeg;base64,{base64.b64encode(file_content).decode()}">
+                <p>Text Query: "{query}" (Image Weight: {weight_image})</p>
+            </div>
+            """
+        except Exception as e:
+            logger.error(f"Error processing image file for multimodal search: {str(e)}")
+            return HTMLResponse(f"<p>Error processing image for multimodal search: {str(e)}</p>")
+    else:
+        # No valid search parameters
+        if not query and not has_valid_file:
+            return HTMLResponse("<p>Please provide an image, text, or both to search.</p>")
+    
+    # Filter results based on selected filters
+    if filters:
+        logger.info(f"Filtering results based on {len(filters)} filters")
+        filtered_results = []
+        for r in results:
+            # Get filter results from JSON string
+            filter_results = {}
+            if "filter_results_json" in r:
+                try:
+                    filter_results = json.loads(r["filter_results_json"])
+                except (json.JSONDecodeError, TypeError):
+                    logger.warning(f"Error parsing filter_results_json for image {r['id']}")
+            
+            # Check if this result matches all the selected filters
+            if all(filter_results.get(f, "").lower().strip() == "yes" for f in filters):
+                filtered_results.append(r)
+        
+        # Update results with filtered version
+        logger.info(f"Results filtered: {len(results)} -> {len(filtered_results)}")
+        results = filtered_results
+    
+    # Format results for display
+    result_html = ""
+    if not results:
+        result_html = "<p>No matching images found. Try different search criteria or filters.</p>"
+    else:
+        for r in results:
+            similarity_pct = f"{r['similarity'] * 100:.1f}%"
+            
+            # Add filter results to display if any filters were applied
+            filter_display = ""
+            if filters and "filter_results_json" in r:
+                try:
+                    filter_results = json.loads(r["filter_results_json"])
+                    filter_display = "<div class='filter-results'><h4>Filter Results</h4><ul class='filter-results-list'>"
+                    for f in filters:
+                        answer = filter_results.get(f, "unknown")
+                        if isinstance(answer, str):
+                            answer = answer.strip()
+                        display_text = format_filter_for_display(f)
+                        
+                        # Replace yes/no with SVG icons
+                        icon_html = ""
+                        if answer.lower() == "yes":
+                            icon_html = """<svg class="filter-icon filter-yes" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M5 13L9 17L19 7" stroke="#4CAF50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>"""
+                        elif answer.lower() == "no":
+                            icon_html = """<svg class="filter-icon filter-no" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M6 18L18 6M6 6L18 18" stroke="#F44336" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>"""
+                        else:
+                            icon_html = """<svg class="filter-icon filter-unknown" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 16V16.01M12 13C12.5523 13 13 12.5523 13 12C13 11.4477 12.5523 11 12 11C11.4477 11 11 11.4477 11 12C11 12.5523 11.4477 13 12 13ZM12 13V8M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="#FFC107" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>"""
+                        
+                        filter_display += f"<li><strong>{display_text}</strong> {icon_html}</li>"
+                    filter_display += "</ul></div>"
+                except (json.JSONDecodeError, TypeError):
+                    logger.warning(f"Error parsing filter_results_json for display, image {r['id']}")
+            
+            result_html += f"""
+            <div class="card result">
+                <div class="image-details">
+                    <div class="image-preview">
+                        <img src="/{r['processed_path']}" alt="{r['description']}">
+                        <p class="similarity">Similarity: {similarity_pct}</p>
+                    </div>
+                    <div class="image-metadata">
+                        <h3>{r['description']}</h3>
+                        <p><strong>ID:</strong> <span class="metadata-value">{r['id']}</span></p>
+                        {filter_display}
+                    </div>
+                </div>
+            </div>
+            """
+    
+    # Combine query image and results with styling
+    final_html = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>ImageMatch - Search Results</title>
+        <style>
+            :root {{
+                --primary-color: #4361ee;
+                --secondary-color: #3f37c9;
+                --success-color: #4CAF50;
+                --error-color: #F44336;
+                --warning-color: #FFC107;
+                --text-color: #333;
+                --light-bg: #f8f9fa;
+                --border-color: #dee2e6;
+                --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                --radius: 8px;
+            }}
+            
+            body {{ 
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                max-width: 1200px; 
+                margin: 0 auto; 
+                padding: 20px;
+                background-color: #fff;
+                color: var(--text-color);
+                line-height: 1.6;
+            }}
+            
+            h1 {{ 
+                color: var(--primary-color);
+                font-weight: 700;
+                margin-bottom: 30px;
+                border-bottom: 2px solid var(--border-color);
+                padding-bottom: 10px;
+            }}
+
+            h3 {{
+                margin-top: 0;
+                color: var(--primary-color);
+            }}
+            
+            .card {{
+                background-color: var(--light-bg);
+                padding: 25px;
+                border-radius: var(--radius);
+                margin-bottom: 30px;
+                box-shadow: var(--shadow);
+                border: 1px solid var(--border-color);
+                height: 100%;
+                display: flex;
+                flex-direction: column;
+            }}
+            
+            .search-results {{
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+                gap: 25px;
+            }}
+            
+            @media (min-width: 768px) {{
+                .search-results {{
+                    grid-template-columns: repeat(2, 1fr);
+                }}
+            }}
+            
+            @media (min-width: 1024px) {{
+                .search-results {{
+                    grid-template-columns: repeat(3, 1fr);
+                }}
+            }}
+            
+            .image-details {{
+                display: flex;
+                flex-direction: column;
+                height: 100%;
+            }}
+            
+            .image-preview {{
+                margin-bottom: 15px;
+            }}
+            
+            .image-metadata {{
+                flex: 1;
+            }}
+            
+            .image-preview img {{
+                width: 100%;
+                border-radius: var(--radius);
+                box-shadow: var(--shadow);
+                object-fit: cover;
+                aspect-ratio: 4/3;
+            }}
+            
+            .query-image {{
+                margin-bottom: 20px;
+            }}
+            
+            .query-image img {{
+                max-width: 200px;
+                border-radius: var(--radius);
+                box-shadow: var(--shadow);
+            }}
+            
+            .similarity {{
+                margin-top: 10px;
+                font-weight: bold;
+                color: var(--primary-color);
+            }}
+            
+            .applied-filters {{
+                background-color: rgba(67, 97, 238, 0.05);
+                padding: 15px;
+                border-radius: var(--radius);
+                margin-bottom: 20px;
+                border-left: 3px solid var(--primary-color);
+            }}
+            
+            .applied-filters h3 {{
+                margin-top: 0;
+                color: var(--primary-color);
+            }}
+            
+            .applied-filters ul {{
+                margin: 0;
+                padding-left: 20px;
+            }}
+            
+            .filter-results {{
+                background-color: rgba(67, 97, 238, 0.05);
+                padding: 15px;
+                border-radius: var(--radius);
+                margin-top: 15px;
+            }}
+            
+            .filter-results h4 {{
+                margin-top: 0;
+                color: var(--primary-color);
+            }}
+            
+            .filter-results-list {{
+                margin: 0;
+                padding-left: 0;
+                list-style-type: none;
+            }}
+            
+            .filter-results-list li {{
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-bottom: 5px;
+                padding-bottom: 5px;
+                border-bottom: 1px solid rgba(0,0,0,0.05);
+            }}
+            
+            .filter-results-list li:last-child {{
+                margin-bottom: 0;
+                padding-bottom: 0;
+                border-bottom: none;
+            }}
+            
+            .filter-icon {{
+                margin-left: 10px;
+            }}
+            
+            .filter-yes {{
+                color: var(--success-color);
+            }}
+            
+            .filter-no {{
+                color: var(--error-color);
+            }}
+            
+            .filter-unknown {{
+                color: var(--warning-color);
+            }}
+            
+            .metadata-value {{
+                font-weight: normal;
+                color: #666;
+            }}
+            
+            .nav-bar {{
+                display: flex;
+                margin-bottom: 30px;
+                border-bottom: 1px solid var(--border-color);
+                padding-bottom: 15px;
+            }}
+            
+            .nav-bar a {{
+                color: var(--text-color);
+                text-decoration: none;
+                margin-right: 20px;
+                font-weight: 600;
+                transition: color 0.2s;
+                display: inline-flex;
+                align-items: center;
+            }}
+            
+            .nav-bar a:hover {{
+                color: var(--primary-color);
+            }}
+            
+            .nav-bar a svg {{
+                margin-right: 6px;
+            }}
+            
+            @media (max-width: 768px) {{
+                body {{
+                    padding: 15px;
+                }}
+                
+                .card {{
+                    padding: 20px;
+                }}
+            }}
+        </style>
+    </head>
+    <body>
+        <h1>ImageMatch</h1>
+        
+        <div class="nav-bar">
+            <a href="/">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M3 12L5 10M5 10L12 3L19 10M5 10V20C5 20.5523 5.44772 21 6 21H9M19 10L21 12M19 10V20C19 20.5523 18.5523 21 18 21H15M9 21C9.55228 21 10 20.5523 10 20V16C10 15.4477 10.4477 15 11 15H13C13.5523 15 14 15.4477 14 16V20C14 20.5523 14.4477 21 15 21M9 21H15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Home
+            </a>
+            <a href="/app">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M15.5 14H14.71L14.43 13.73C15.41 12.59 16 11.11 16 9.5C16 5.91 13.09 3 9.5 3C5.91 3 3 5.91 3 9.5C3 13.09 5.91 16 9.5 16C11.11 16 12.59 15.41 13.73 14.43L14 14.71V15.5L19 20.49L20.49 19L15.5 14ZM9.5 14C7.01 14 5 11.99 5 9.5C5 7.01 7.01 5 9.5 5C11.99 5 14 7.01 14 9.5C14 11.99 11.99 14 9.5 14Z" fill="currentColor"/>
+                </svg>
+                Search
+            </a>
+            <a href="/images">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM19 19H5V5H19V19ZM13.96 12.29L11.21 15.83L9.25 13.47L6.5 17H17.5L13.96 12.29Z" fill="currentColor"/>
+                </svg>
+                All Images
+            </a>
+            <a href="/manage">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M10.3246 4.31731C10.751 2.5609 13.249 2.5609 13.6754 4.31731C13.9508 5.45193 15.2507 5.99038 16.2478 5.38285C17.7913 4.44239 19.5576 6.2087 18.6172 7.75218C18.0096 8.74925 18.5481 10.0492 19.6827 10.3246C21.4391 10.751 21.4391 13.249 19.6827 13.6754C18.5481 13.9508 18.0096 15.2507 18.6172 16.2478C19.5576 17.7913 17.7913 19.5576 16.2478 18.6172C15.2507 18.0096 13.9508 18.5481 13.6754 19.6827C13.249 21.4391 10.751 21.4391 10.3246 19.6827C10.0492 18.5481 8.74926 18.0096 7.75219 18.6172C6.2087 19.5576 4.44239 17.7913 5.38285 16.2478C5.99038 15.2507 5.45193 13.9508 4.31731 13.6754C2.5609 13.249 2.5609 10.751 4.31731 10.3246C5.45193 10.0492 5.99037 8.74926 5.38285 7.75218C4.44239 6.2087 6.2087 4.44239 7.75219 5.38285C8.74926 5.99037 10.0492 5.45193 10.3246 4.31731Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M15 12C15 13.6569 13.6569 15 12 15C10.3431 15 9 13.6569 9 12C9 10.3431 10.3431 9 12 9C13.6569 9 15 10.3431 15 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Manage
+            </a>
+        </div>
+        
+        <section>
+            <div class="section-header">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M15.5 14H14.71L14.43 13.73C15.41 12.59 16 11.11 16 9.5C16 5.91 13.09 3 9.5 3C5.91 3 3 5.91 3 9.5C3 13.09 5.91 16 9.5 16C11.11 16 12.59 15.41 13.73 14.43L14 14.71V15.5L19 20.49L20.49 19L15.5 14ZM9.5 14C7.01 14 5 11.99 5 9.5C5 7.01 7.01 5 9.5 5C11.99 5 14 7.01 14 9.5C14 11.99 11.99 14 9.5 14Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <h2>Search Results</h2>
+            </div>
+
+            {query_image_html}
+            {f'<div class="applied-filters"><h3>Applied Filters</h3><ul>' + ''.join([f'<li>{f}</li>' for f in filters]) + '</ul></div>' if filters else ''}
+            
+            <div class="search-results">
+                {result_html}
             </div>
             
             <a href="/images" class="action-button" style="display: inline-flex; align-items: center; background-color: var(--primary-color); color: white; padding: 8px 16px; text-decoration: none; border-radius: 8px; margin-top: 20px;">
