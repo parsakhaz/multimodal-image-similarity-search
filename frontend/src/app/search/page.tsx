@@ -6,6 +6,7 @@ import { useSearchStore } from '@/stores/searchStore';
 import ImageGrid from '@/components/ImageGrid';
 import FileDropzone from '@/components/FileDropzone';
 import FilterSelector from '@/components/FilterSelector';
+import ImageDetailModal from '@/components/ImageDetailModal';
 import { FiChevronLeft, FiSearch, FiImage, FiLayers } from 'react-icons/fi';
 import { ImageMetadata } from '@/types';
 
@@ -209,79 +210,10 @@ export default function SearchPage() {
 
         {/* Selected Image Modal */}
         {selectedResult && (
-          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-              <div className="p-4 border-b flex justify-between items-center">
-                <h3 className="text-lg font-medium">Image Details</h3>
-                <button 
-                  onClick={() => setSelectedResult(null)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  ✕
-                </button>
-              </div>
-              
-              <div className="flex flex-col md:flex-row overflow-auto p-4 gap-6">
-                <div className="md:w-1/2">
-                  <img 
-                    src={selectedResult.url} 
-                    alt={selectedResult.description || selectedResult.filename}
-                    className="w-full h-auto object-contain max-h-[60vh]"
-                  />
-                </div>
-                
-                <div className="md:w-1/2 space-y-4">
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-500">Filename</h4>
-                    <p>{selectedResult.filename}</p>
-                  </div>
-                  
-                  {selectedResult.description && (
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-500">Description</h4>
-                      <p>{selectedResult.description}</p>
-                    </div>
-                  )}
-                  
-                  {selectedResult.custom_metadata && (
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-500">Custom Metadata</h4>
-                      <p className="whitespace-pre-wrap">{selectedResult.custom_metadata}</p>
-                    </div>
-                  )}
-                  
-                  {selectedResult.similarity_score !== undefined && (
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-500">Similarity Score</h4>
-                      <div className="w-full bg-gray-200 rounded-full h-2.5">
-                        <div 
-                          className="bg-blue-600 h-2.5 rounded-full" 
-                          style={{ width: `${Math.round(selectedResult.similarity_score * 100)}%` }}
-                        ></div>
-                      </div>
-                      <p className="text-sm text-right mt-1">
-                        {Math.round(selectedResult.similarity_score * 100)}%
-                      </p>
-                    </div>
-                  )}
-                  
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-500">Added On</h4>
-                    <p>{new Date(selectedResult.created_at).toLocaleDateString()}</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="p-4 border-t flex justify-end">
-                <Link
-                  href={`/images?id=${selectedResult.id}`}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                >
-                  View in Collection
-                </Link>
-              </div>
-            </div>
-          </div>
+          <ImageDetailModal 
+            image={selectedResult} 
+            onClose={() => setSelectedResult(null)} 
+          />
         )}
       </div>
     </main>

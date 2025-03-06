@@ -5,10 +5,12 @@ import Link from 'next/link';
 import { useUploadStore } from '@/stores/uploadStore';
 import { useFilterStore } from '@/stores/filterStore';
 import FileDropzone from '@/components/FileDropzone';
-import { FiChevronLeft, FiFilter, FiUpload, FiTrash2, FiPlus, FiAlertTriangle } from 'react-icons/fi';
+import ImageDetailModal from '@/components/ImageDetailModal';
+import { FiChevronLeft, FiFilter, FiUpload, FiTrash2, FiPlus, FiAlertTriangle, FiEye } from 'react-icons/fi';
 import { useEffect } from 'react';
 import apiClient from '@/lib/api';
 import { useRouter } from 'next/navigation';
+import { ImageMetadata } from '@/types';
 
 // Define proper type for filter progress data
 interface FilterProgressData {
@@ -88,6 +90,11 @@ export default function ManagePage() {
     }
   } | null>(null);
 
+  // New state for image preview
+  const [previewImage, setPreviewImage] = useState<ImageMetadata | null>(null);
+  // Store the successful upload data to allow preview
+  const [successData, setSuccessData] = useState<ImageMetadata | null>(null);
+  
   // Fetch filters on component mount
   useEffect(() => {
     fetchFilters();
@@ -297,6 +304,30 @@ export default function ManagePage() {
     setFolderUploadError(null);
   };
 
+  // Function to preview recently uploaded image
+  const handlePreviewImage = (image: ImageMetadata | null) => {
+    if (image) {
+      setPreviewImage(image);
+    }
+  };
+
+  // Create a dummy image for the preview button when upload is successful
+  useEffect(() => {
+    if (success) {
+      // Create a simple metadata object with basic info for preview
+      const uploadedImage: ImageMetadata = {
+        id: 'temp-id',
+        filename: file?.name || 'uploaded-image',
+        description: description,
+        url: file ? URL.createObjectURL(file) : '',
+        thumbnail_url: file ? URL.createObjectURL(file) : '',
+        created_at: new Date().toISOString(),
+        custom_metadata: customMetadata
+      };
+      setSuccessData(uploadedImage);
+    }
+  }, [success, file, description, customMetadata]);
+
   return (
     <main className="flex min-h-screen flex-col p-8">
       <div className="max-w-4xl mx-auto w-full">
@@ -354,8 +385,14 @@ export default function ManagePage() {
             <h2 className="text-lg font-medium mb-4">Upload New Image</h2>
             
             {success && (
-              <div className="mb-4 p-3 bg-green-50 text-green-700 rounded-md">
-                Image uploaded successfully!
+              <div className="mb-4 p-3 bg-green-50 text-green-700 rounded-md flex justify-between items-center">
+                <span>Image uploaded successfully!</span>
+                <button 
+                  onClick={() => handlePreviewImage(successData)}
+                  className="text-green-700 hover:text-green-900 flex items-center"
+                >
+                  <FiEye className="mr-1" /> Preview
+                </button>
               </div>
             )}
             
@@ -758,6 +795,14 @@ export default function ManagePage() {
           </div>
         </div>
       </div>
+
+      {/* Image Preview Modal */}
+      {previewImage && (
+        <ImageDetailModal 
+          image={previewImage} 
+          onClose={() => setPreviewImage(null)} 
+        />
+      )}
     </main>
   );
 } 
