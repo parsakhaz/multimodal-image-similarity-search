@@ -64,6 +64,23 @@ const apiClient = {
     });
   },
   
+  // Folder Upload
+  async uploadFolder({ files, removeBg = false }: { files: File[], removeBg: boolean }) {
+    const formData = new FormData();
+    
+    files.forEach(file => {
+      formData.append('files', file);
+    });
+    
+    formData.append('remove_bg', String(removeBg));
+    
+    return api.post('/api/upload-folder', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+  
   // Image Search
   async searchByImage({ file, filters }: SearchImageParams) {
     const formData = new FormData();
@@ -140,6 +157,11 @@ const apiClient = {
         'Content-Type': 'multipart/form-data',
       },
     });
+  },
+  
+  // Get filter progress
+  async getFilterProgress(filterQuery: string) {
+    return api.get(`/api/filter-progress?filter_query=${encodeURIComponent(filterQuery)}`);
   },
   
   // Delete a filter
