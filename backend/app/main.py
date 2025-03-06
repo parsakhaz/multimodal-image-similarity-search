@@ -242,15 +242,22 @@ async def search_by_text_route(query: str, filters: List[str] = None):
     logger.info(f"Text search request received with query: {query}")
     
     try:
-        # Generate CLIP embedding for the text
-        model, processor = load_clip_model()
-        embedding_result = generate_clip_embedding(text=query, model=model, processor=processor)
-        
-        # Search for matching images
-        results = search_by_text(
-            query_text=query,
-            limit=10
-        )
+        # Check if we have an empty query but filters are applied
+        if not query.strip() and filters and len(filters) > 0:
+            logger.info(f"Empty query with filters: {filters}. Returning all images with filters applied.")
+            
+            # Get all images instead of doing a text search
+            results = get_all_images_with_limit(limit=100)  # Higher limit for filter-only searches
+        else:
+            # Generate CLIP embedding for the text
+            model, processor = load_clip_model()
+            embedding_result = generate_clip_embedding(text=query, model=model, processor=processor)
+            
+            # Search for matching images
+            results = search_by_text(
+                query_text=query,
+                limit=10
+            )
         
         # Apply filters if specified
         if filters and len(filters) > 0:
@@ -275,7 +282,11 @@ async def search_by_text_route(query: str, filters: List[str] = None):
             logger.info(f"Results filtered: {len(results)} -> {len(filtered_results)}")
             results = filtered_results
         
-        logger.info(f"Found {len(results)} matches for text search: '{query}'")
+        if not query.strip() and filters and len(filters) > 0:
+            logger.info(f"Found {len(results)} matches for filter-only search")
+        else:
+            logger.info(f"Found {len(results)} matches for text search: '{query}'")
+            
         return {"results": results}
         
     except Exception as e:
@@ -1216,4 +1227,24 @@ async def get_image_by_id(image_id: str):
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": str(e)}
-        ) 
+        )
+
+def get_all_images_with_limit(limit: int = 100) -> List[Dict]:
+    """Get all images with an optional limit"""
+    try:
+        # Extract all metadata
+        all_images = list(image_metadata.values())
+        
+        # Sort by created_at in descending order (newest first)
+        all_images.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        
+        # Apply limit
+        if limit > 0:
+            all_images = all_images[:limit]
+            
+        logger.info(f"Retrieved {len(all_images)} images with limit {limit}")
+        return all_images
+        
+    except Exception as e:
+        logger.error(f"Error in get_all_images_with_limit: {e}")
+        return [] 

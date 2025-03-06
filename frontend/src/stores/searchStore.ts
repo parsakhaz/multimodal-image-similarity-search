@@ -41,8 +41,8 @@ export const useSearchStore = create<SearchState & {
   searchByText: async () => {
     const { query, filters } = get();
     
-    if (!query.trim()) {
-      set({ error: 'Please enter a search query' });
+    if (!query.trim() && (!filters || filters.length === 0)) {
+      set({ error: 'Please enter a search query or select at least one filter' });
       return;
     }
     
