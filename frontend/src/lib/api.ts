@@ -20,11 +20,13 @@ export interface UploadImageParams {
 export interface SearchImageParams {
   file: File;
   filters?: string[];
+  limit?: number;
 }
 
 export interface SearchTextParams {
   query: string;
   filters?: string[];
+  limit?: number;
 }
 
 export interface SearchMultimodalParams {
@@ -32,6 +34,7 @@ export interface SearchMultimodalParams {
   query: string;
   weightImage?: number;
   filters?: string[];
+  limit?: number;
 }
 
 export interface UpdateMetadataParams {
@@ -253,7 +256,7 @@ const apiClient = {
   },
   
   // Image Search
-  async searchByImage({ file, filters }: SearchImageParams) {
+  async searchByImage({ file, filters, limit }: SearchImageParams) {
     const formData = new FormData();
     formData.append('file', file);
     
@@ -263,6 +266,9 @@ const apiClient = {
       });
     }
     
+    // Always append limit, including when it's 0 (All)
+    formData.append('limit', String(limit !== undefined ? limit : 10));
+    
     return api.post('/api/search/image', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
@@ -271,7 +277,7 @@ const apiClient = {
   },
   
   // Text Search
-  async searchByText({ query, filters }: SearchTextParams) {
+  async searchByText({ query, filters, limit }: SearchTextParams) {
     let url = `/api/search/text?query=${encodeURIComponent(query)}`;
     
     if (filters && filters.length > 0) {
@@ -280,11 +286,14 @@ const apiClient = {
       });
     }
     
+    // Always include limit parameter, including when it's 0 (All)
+    url += `&limit=${encodeURIComponent(String(limit !== undefined ? limit : 10))}`;
+    
     return api.get(url);
   },
   
   // Multimodal Search
-  async searchMultimodal({ file, query, weightImage = 0.5, filters }: SearchMultimodalParams) {
+  async searchMultimodal({ file, query, weightImage = 0.5, filters, limit }: SearchMultimodalParams) {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('query', query);
@@ -295,6 +304,9 @@ const apiClient = {
         formData.append('filters', filter);
       });
     }
+    
+    // Always append limit, including when it's 0 (All)
+    formData.append('limit', String(limit !== undefined ? limit : 10));
     
     return api.post('/api/search/multimodal', formData, {
       headers: {

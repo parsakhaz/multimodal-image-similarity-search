@@ -20,11 +20,13 @@ export default function SearchPage() {
     results,
     isLoading,
     error,
+    resultLimit,
     setSearchType,
     setQuery,
     setSelectedImage,
     setWeightImage,
     setFilters,
+    setResultLimit,
     searchByText,
     searchByImage,
     searchMultimodal,
@@ -167,6 +169,25 @@ export default function SearchPage() {
                 selectedFilters={filters}
                 onFilterChange={setFilters}
               />
+
+              {/* Result Limit */}
+              <div>
+                <label htmlFor="resultLimit" className="block text-sm font-medium text-gray-700 mb-1">
+                  Maximum Results
+                </label>
+                <select
+                  id="resultLimit"
+                  value={resultLimit}
+                  onChange={(e) => setResultLimit(Number(e.target.value))}
+                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                >
+                  <option value={10}>10 results</option>
+                  <option value={25}>25 results</option>
+                  <option value={50}>50 results</option>
+                  <option value={100}>100 results</option>
+                  <option value={0}>All results</option>
+                </select>
+              </div>
 
               {/* Search Button */}
               <button

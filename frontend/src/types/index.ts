@@ -49,6 +49,7 @@ export interface SearchState {
   results: ImageMetadata[];
   isLoading: boolean;
   error: string | null;
+  resultLimit: number;
 }
 
 // Upload types

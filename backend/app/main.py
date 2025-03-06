@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Dict, Any, Tuple, Union
 from fastapi import FastAPI, UploadFile, File, Form, Request, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -177,30 +177,25 @@ async def upload_image(
 @app.post("/api/search/image")
 async def search_by_image(
     file: UploadFile = File(...),
-    filters: List[str] = Form(None)
+    filters: List[str] = Form(None),
+    limit: int = Form(10)
 ):
     """Search for similar images using an uploaded image"""
-    logger.info(f"Image search request received with file: {file.filename}")
+    logger.info(f"Image search request received, limit: {limit}")
     
     try:
-        # Read file content
-        content = await file.read()
+        # Read the uploaded image
+        image_bytes = await file.read()
+        image = Image.open(BytesIO(image_bytes)).convert("RGB")
         
-        # Open the image
-        image = Image.open(BytesIO(content))
-        
-        # Convert to RGB if needed
-        if image.mode != 'RGB':
-            image = image.convert('RGB')
-        
-        # Generate CLIP embedding for the image
+        # Generate CLIP embedding
         model, processor = load_clip_model()
         embedding_result = generate_clip_embedding(image=image, model=model, processor=processor)
         
         # Search for similar images
         results = search_similar(
             embedding=embedding_result["image"][0],
-            limit=10
+            limit=limit  # Use the provided limit
         )
         
         # Apply filters if specified
@@ -236,10 +231,14 @@ async def search_by_image(
             content={"success": False, "error": str(e)}
         )
 
-@app.get("/api/search/text")
-async def search_by_text_route(query: str, filters: List[str] = None):
+@app.post("/api/search/text")
+async def search_by_text_route(
+    query: str = Form(...),
+    filters: List[str] = Form(None),
+    limit: int = Form(10)
+):
     """Search for images using text query"""
-    logger.info(f"Text search request received with query: {query}")
+    logger.info(f"Text search request received with query: {query}, limit: {limit}")
     
     try:
         # Check if we have an empty query but filters are applied
@@ -247,16 +246,12 @@ async def search_by_text_route(query: str, filters: List[str] = None):
             logger.info(f"Empty query with filters: {filters}. Returning all images with filters applied.")
             
             # Get all images instead of doing a text search
-            results = get_all_images_with_limit(limit=100)  # Higher limit for filter-only searches
+            results = get_all_images_with_limit(limit=limit)  # Use the provided limit
         else:
-            # Generate CLIP embedding for the text
-            model, processor = load_clip_model()
-            embedding_result = generate_clip_embedding(text=query, model=model, processor=processor)
-            
-            # Search for matching images
+            # Search for matching images using the text query
             results = search_by_text(
                 query_text=query,
-                limit=10
+                limit=limit  # Use the provided limit
             )
         
         # Apply filters if specified
@@ -282,6 +277,7 @@ async def search_by_text_route(query: str, filters: List[str] = None):
             logger.info(f"Results filtered: {len(results)} -> {len(filtered_results)}")
             results = filtered_results
         
+        # Log the result count with appropriate message
         if not query.strip() and filters and len(filters) > 0:
             logger.info(f"Found {len(results)} matches for filter-only search")
         else:
@@ -301,28 +297,23 @@ async def search_multimodal_route(
     file: UploadFile = File(...),
     query: str = Form(...),
     weight_image: float = Form(0.5),
-    filters: List[str] = Form(None)
+    filters: List[str] = Form(None),
+    limit: int = Form(10)
 ):
-    """Search using both image and text"""
-    logger.info(f"Multimodal search request received: image={file.filename}, text='{query}', weight={weight_image}")
+    """Search using both image and text with weighted combination"""
+    logger.info(f"Multimodal search request received: query='{query}', weight_image={weight_image}, limit={limit}")
     
     try:
-        # Read file content
+        # Read and convert the image
         content = await file.read()
+        image = Image.open(BytesIO(content)).convert('RGB')
         
-        # Open the image
-        image = Image.open(BytesIO(content))
-        
-        # Convert to RGB if needed
-        if image.mode != 'RGB':
-            image = image.convert('RGB')
-        
-        # Perform multimodal search
+        # Run multimodal search
         results = search_multimodal(
             image=image,
             query_text=query,
             weight_image=weight_image,
-            limit=10
+            limit=limit  # Use the provided limit
         )
         
         # Apply filters if specified
@@ -762,12 +753,14 @@ def search_similar(
     global collection, image_metadata
     
     try:
-        logger.info(f"Searching for similar images with limit {limit}")
+        # Handle "All" option (limit of 0)
+        actual_limit = 1000 if limit <= 0 else limit
+        logger.info(f"Searching for similar images {'' if limit <= 0 else f'with limit {limit}'}")
         
         # Query ChromaDB for similar embeddings
         results = collection.query(
             query_embeddings=[embedding.tolist()],
-            n_results=limit,
+            n_results=actual_limit,
             include=["metadatas", "distances"]
         )
         
@@ -819,7 +812,7 @@ def search_by_text(
     global collection
     
     try:
-        logger.info(f"Searching for images matching text: '{query_text}' with limit {limit}")
+        logger.info(f"Searching for images matching text: '{query_text}'{'' if limit <= 0 else f' with limit {limit}'}")
         
         # Generate text embedding
         model, processor = load_clip_model()
@@ -841,7 +834,7 @@ def search_multimodal(
 ) -> List[Dict]:
     """Search using both image and text with weighted combination"""
     try:
-        logger.info(f"Multimodal search: image weight={weight_image}, text weight={1-weight_image}, limit={limit}")
+        logger.info(f"Multimodal search: image weight={weight_image}, text weight={1-weight_image}{'' if limit <= 0 else f', limit={limit}'}")
         
         # Generate embeddings for both image and text
         model, processor = load_clip_model()
@@ -1238,11 +1231,11 @@ def get_all_images_with_limit(limit: int = 100) -> List[Dict]:
         # Sort by created_at in descending order (newest first)
         all_images.sort(key=lambda x: x.get("created_at", ""), reverse=True)
         
-        # Apply limit
+        # Apply limit - if limit is 0, return all results (no limit)
         if limit > 0:
             all_images = all_images[:limit]
             
-        logger.info(f"Retrieved {len(all_images)} images with limit {limit}")
+        logger.info(f"Retrieved {len(all_images)} images {'' if limit <= 0 else f'with limit {limit}'}")
         return all_images
         
     except Exception as e:

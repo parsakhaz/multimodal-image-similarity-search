@@ -11,6 +11,7 @@ const initialState: SearchState = {
   results: [],
   isLoading: false,
   error: null,
+  resultLimit: 10, // Default to 10 results
 };
 
 export const useSearchStore = create<SearchState & {
@@ -19,6 +20,7 @@ export const useSearchStore = create<SearchState & {
   setSelectedImage: (file: File | null) => void;
   setWeightImage: (weight: number) => void;
   setFilters: (filters: string[]) => void;
+  setResultLimit: (limit: number) => void;
   clearResults: () => void;
   searchByText: () => Promise<void>;
   searchByImage: () => Promise<void>;
@@ -36,10 +38,12 @@ export const useSearchStore = create<SearchState & {
   
   setFilters: (filters) => set({ filters }),
   
+  setResultLimit: (limit) => set({ resultLimit: limit }),
+  
   clearResults: () => set({ results: [], error: null }),
   
   searchByText: async () => {
-    const { query, filters } = get();
+    const { query, filters, resultLimit } = get();
     
     if (!query.trim() && (!filters || filters.length === 0)) {
       set({ error: 'Please enter a search query or select at least one filter' });
@@ -49,7 +53,11 @@ export const useSearchStore = create<SearchState & {
     set({ isLoading: true, error: null });
     
     try {
-      const response = await apiClient.searchByText({ query, filters });
+      const response = await apiClient.searchByText({ 
+        query, 
+        filters,
+        limit: resultLimit
+      });
       set({ results: response.data.results, isLoading: false });
     } catch (error) {
       console.error('Text search error:', error);
@@ -61,7 +69,7 @@ export const useSearchStore = create<SearchState & {
   },
   
   searchByImage: async () => {
-    const { selectedImage, filters } = get();
+    const { selectedImage, filters, resultLimit } = get();
     
     if (!selectedImage) {
       set({ error: 'Please select an image to search' });
@@ -73,7 +81,8 @@ export const useSearchStore = create<SearchState & {
     try {
       const response = await apiClient.searchByImage({ 
         file: selectedImage, 
-        filters 
+        filters,
+        limit: resultLimit
       });
       set({ results: response.data.results, isLoading: false });
     } catch (error) {
@@ -86,7 +95,7 @@ export const useSearchStore = create<SearchState & {
   },
   
   searchMultimodal: async () => {
-    const { query, selectedImage, weightImage, filters } = get();
+    const { query, selectedImage, weightImage, filters, resultLimit } = get();
     
     if (!selectedImage) {
       set({ error: 'Please select an image to search' });
@@ -105,7 +114,8 @@ export const useSearchStore = create<SearchState & {
         file: selectedImage, 
         query,
         weightImage,
-        filters 
+        filters,
+        limit: resultLimit
       });
       set({ results: response.data.results, isLoading: false });
     } catch (error) {
