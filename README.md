@@ -29,18 +29,21 @@ This application has been refactored to use a modern architecture:
 ### Installation
 
 1. Clone the repository
+
    ```bash
    git clone https://github.com/yourusername/multimodal-image-similarity-search.git
    cd multimodal-image-similarity-search
    ```
 
 2. Set up the backend
+
    ```bash
    cd backend
    pip install -r requirements.txt
    ```
 
 3. Set up the frontend
+
    ```bash
    cd frontend
    npm install
@@ -49,29 +52,35 @@ This application has been refactored to use a modern architecture:
 ### Configuration
 
 1. Create or edit the `.env` file in the backend directory with the following variables:
-   ```
+
+   ```txt
    COLLECTION_NAME=image-match
    CHROMA_PERSIST_DIR=chroma_data
    ```
 
 2. Create a `.env.local` file in the frontend directory with:
-   ```
+
+   ```txt
    NEXT_PUBLIC_API_URL=http://localhost:8000
    ```
 
 ### Running the Application
 
 1. Start the backend (from the backend directory)
+
    ```bash
    python run.py
    ```
-   The API will be available at http://localhost:8000
+
+   The API will be available at <http://localhost:8000>
 
 2. Start the frontend development server (from the frontend directory)
+
    ```bash
    npm run dev
    ```
-   The frontend will be available at http://localhost:3000
+
+   The frontend will be available at <http://localhost:3000>
 
 ## API Endpoints
 
@@ -91,6 +100,7 @@ The backend provides the following REST API endpoints:
 ## Technologies
 
 ### Backend
+
 - FastAPI - High-performance API framework
 - ChromaDB - Vector database for similarity search
 - PyTorch - Deep learning framework
@@ -99,6 +109,7 @@ The backend provides the following REST API endpoints:
 - Rembg - Background removal
 
 ### Frontend
+
 - Next.js - React framework
 - TypeScript - Type-safe JavaScript
 - Tailwind CSS - Utility-first CSS framework

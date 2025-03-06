@@ -12,7 +12,7 @@ export const useFilterStore = create<FilterState & {
   fetchFilters: () => Promise<void>;
   addFilter: (query: string) => Promise<void>;
   deleteFilter: (query: string) => Promise<void>;
-}>((set, get) => ({
+}>((set) => ({
   ...initialState,
   
   fetchFilters: async () => {
