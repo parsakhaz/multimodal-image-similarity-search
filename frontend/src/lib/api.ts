@@ -278,18 +278,23 @@ const apiClient = {
   
   // Text Search
   async searchByText({ query, filters, limit }: SearchTextParams) {
-    let url = `/api/search/text?query=${encodeURIComponent(query)}`;
+    const formData = new FormData();
+    formData.append('query', query);
     
     if (filters && filters.length > 0) {
       filters.forEach(filter => {
-        url += `&filters=${encodeURIComponent(filter)}`;
+        formData.append('filters', filter);
       });
     }
     
-    // Always include limit parameter, including when it's 0 (All)
-    url += `&limit=${encodeURIComponent(String(limit !== undefined ? limit : 10))}`;
+    // Always append limit, including when it's 0 (All)
+    formData.append('limit', String(limit !== undefined ? limit : 10));
     
-    return api.get(url);
+    return api.post('/api/search/text', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
   },
   
   // Multimodal Search
