@@ -206,7 +206,25 @@ async def search_by_image(
         # Apply filters if specified
         if filters and len(filters) > 0:
             logger.info(f"Applying filters: {filters}")
-            results = [r for r in results if any(format_filter_query(f) in r.get("custom_metadata", "") for f in filters)]
+            filtered_results = []
+            for r in results:
+                # Get filter results from JSON string
+                filter_results = {}
+                if "filter_results_json" in r:
+                    try:
+                        filter_results = json.loads(r["filter_results_json"])
+                    except (json.JSONDecodeError, TypeError):
+                        logger.warning(f"Error parsing filter_results_json for image {r['id']}")
+                
+                # Check if this result matches all the selected filters
+                if all(filter_results.get(f, "").lower().strip() == "yes" for f in filters):
+                    filtered_results.append(r)
+                else:
+                    logger.info(f"Image {r['id']} excluded by filter(s)")
+            
+            # Update results with filtered version
+            logger.info(f"Results filtered: {len(results)} -> {len(filtered_results)}")
+            results = filtered_results
         
         logger.info(f"Found {len(results)} matches for image search")
         return {"results": results}
@@ -237,7 +255,25 @@ async def search_by_text_route(query: str, filters: List[str] = None):
         # Apply filters if specified
         if filters and len(filters) > 0:
             logger.info(f"Applying filters: {filters}")
-            results = [r for r in results if any(format_filter_query(f) in r.get("custom_metadata", "") for f in filters)]
+            filtered_results = []
+            for r in results:
+                # Get filter results from JSON string
+                filter_results = {}
+                if "filter_results_json" in r:
+                    try:
+                        filter_results = json.loads(r["filter_results_json"])
+                    except (json.JSONDecodeError, TypeError):
+                        logger.warning(f"Error parsing filter_results_json for image {r['id']}")
+                
+                # Check if this result matches all the selected filters
+                if all(filter_results.get(f, "").lower().strip() == "yes" for f in filters):
+                    filtered_results.append(r)
+                else:
+                    logger.info(f"Image {r['id']} excluded by filter(s)")
+            
+            # Update results with filtered version
+            logger.info(f"Results filtered: {len(results)} -> {len(filtered_results)}")
+            results = filtered_results
         
         logger.info(f"Found {len(results)} matches for text search: '{query}'")
         return {"results": results}
@@ -281,7 +317,25 @@ async def search_multimodal_route(
         # Apply filters if specified
         if filters and len(filters) > 0:
             logger.info(f"Applying filters: {filters}")
-            results = [r for r in results if any(format_filter_query(f) in r.get("custom_metadata", "") for f in filters)]
+            filtered_results = []
+            for r in results:
+                # Get filter results from JSON string
+                filter_results = {}
+                if "filter_results_json" in r:
+                    try:
+                        filter_results = json.loads(r["filter_results_json"])
+                    except (json.JSONDecodeError, TypeError):
+                        logger.warning(f"Error parsing filter_results_json for image {r['id']}")
+                
+                # Check if this result matches all the selected filters
+                if all(filter_results.get(f, "").lower().strip() == "yes" for f in filters):
+                    filtered_results.append(r)
+                else:
+                    logger.info(f"Image {r['id']} excluded by filter(s)")
+            
+            # Update results with filtered version
+            logger.info(f"Results filtered: {len(results)} -> {len(filtered_results)}")
+            results = filtered_results
         
         logger.info(f"Found {len(results)} matches for multimodal search")
         return {"results": results}
