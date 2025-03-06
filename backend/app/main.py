@@ -882,6 +882,7 @@ def process_filter_on_all_images(filter_query: str) -> None:
         # Ensure Moondream model is available
         if moondream_model is None:
             logger.error("Moondream model not available, cannot process filter")
+            filter_progress[filter_query] = {"status": "error", "message": "Model not available", "progress": 0}
             return
         
         # Format the query for yes/no answer
@@ -895,12 +896,30 @@ def process_filter_on_all_images(filter_query: str) -> None:
         # Initialize progress tracking
         results = {}
         
+        # Initialize filter progress
+        filter_progress[filter_query] = {
+            "status": "processing", 
+            "progress": 0, 
+            "current_image": "",
+            "processed": 0,
+            "total": total_images
+        }
+        
         # Process each image
         for idx, image_id in enumerate(all_ids):
             try:
                 # Update progress
-                progress = int((idx / total_images) * 100)
-                logger.info(f"Filter progress: {progress}% ({idx}/{total_images})")
+                progress_percent = int((idx / total_images) * 100) if total_images > 0 else 0
+                logger.info(f"Filter progress: {progress_percent}% ({idx}/{total_images})")
+                
+                # Update progress tracking
+                filter_progress[filter_query] = {
+                    "status": "processing",
+                    "progress": progress_percent,
+                    "current_image": image_id,
+                    "processed": idx,
+                    "total": total_images
+                }
                 
                 # Load encoded image if available
                 encoded_input = load_encoded_image(image_id)
@@ -953,10 +972,24 @@ def process_filter_on_all_images(filter_query: str) -> None:
                 logger.error(f"Error processing filter for image {image_id}: {e}")
                 results[image_id] = "error"
         
+        # Update progress to completed
+        filter_progress[filter_query] = {
+            "status": "completed",
+            "progress": 100,
+            "processed": total_images,
+            "total": total_images
+        }
+        
         logger.info(f"Filter processing complete for '{filter_query}' on {total_images} images")
         
     except Exception as e:
         logger.error(f"Error processing filter on all images: {e}")
+        # Update progress to error state
+        filter_progress[filter_query] = {
+            "status": "error",
+            "message": str(e),
+            "progress": 0
+        }
 
 def reset_system():
     """Reset the system (clear all data)"""

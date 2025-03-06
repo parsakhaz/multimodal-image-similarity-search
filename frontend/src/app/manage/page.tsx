@@ -10,6 +10,17 @@ import { useEffect } from 'react';
 import apiClient from '@/lib/api';
 import { useRouter } from 'next/navigation';
 
+// Define proper type for filter progress data
+interface FilterProgressData {
+  status: string;
+  progress: number;
+  error?: string;
+  processed?: number;
+  total?: number;
+  current_image?: string;
+  message?: string;
+}
+
 export default function ManagePage() {
   const router = useRouter();
   
@@ -45,7 +56,7 @@ export default function ManagePage() {
   const [newFilter, setNewFilter] = useState('');
   const [isResetting, setIsResetting] = useState(false);
   const [resetConfirm, setResetConfirm] = useState(false);
-  const [filterProgress, setFilterProgress] = useState<{[key: string]: {status: string; progress?: number}} | null>(null);
+  const [filterProgress, setFilterProgress] = useState<Record<string, FilterProgressData>>({});
   
   // Folder upload states
   const [folderFiles, setFolderFiles] = useState<File[]>([]);
@@ -70,6 +81,11 @@ export default function ManagePage() {
     current: number;
     total: number;
     percent: number;
+    filterInfo?: {
+      currentFilter?: string;
+      filterIndex?: number;
+      totalFilters?: number;
+    }
   } | null>(null);
 
   // Fetch filters on component mount
@@ -82,48 +98,103 @@ export default function ManagePage() {
     if (!newFilter.trim()) return;
     
     try {
+      // Add the filter
       await addFilter(newFilter);
       setNewFilter('');
       
-      // Start checking progress
+      // Initialize filter progress tracking with processing state
       setFilterProgress({
         ...filterProgress,
-        [newFilter]: { status: 'processing', progress: 0 }
+        [newFilter]: { status: 'initializing', progress: 0 }
       });
       
-      // Poll for progress
+      // Start tracking the progress with a more accurate polling mechanism
+      let processComplete = false;
+      let pollingCounter = 0;
+      
       const checkProgress = setInterval(async () => {
         try {
           const response = await apiClient.getFilterProgress(newFilter);
           const progressData = response.data;
           
-          setFilterProgress(prev => ({
-            ...prev,
-            [newFilter]: progressData
-          }));
-          
-          if (progressData.status === 'completed' || progressData.status === 'not_found') {
-            clearInterval(checkProgress);
-            // Refresh filter list after a moment
-            setTimeout(() => {
-              fetchFilters();
-              setFilterProgress(prev => {
-                const updated = { ...prev };
-                delete updated[newFilter];
-                return updated;
-              });
-            }, 2000);
+          // Only update if we got valid data
+          if (progressData && typeof progressData === 'object') {
+            // Check if we have a valid status
+            if (progressData.status === 'processing' || progressData.status === 'completed') {
+              // Direct mapping of backend progress data to our state
+              setFilterProgress(prev => ({
+                ...prev,
+                [newFilter]: progressData
+              }));
+              
+              // If completed, start a timer to clean up the progress display
+              if (progressData.status === 'completed') {
+                processComplete = true;
+                clearInterval(checkProgress);
+                
+                // Refresh filter list after completion
+                setTimeout(() => {
+                  fetchFilters();
+                  setFilterProgress(prev => {
+                    const updated = { ...prev };
+                    delete updated[newFilter];
+                    return updated;
+                  });
+                }, 2000);
+              }
+            }
+          } else if (pollingCounter < 10) {
+            // It might take a moment for the backend to create the progress entry
+            // Keep polling for a few seconds before showing not_found
+            pollingCounter++;
+            
+            // Let the user know we're waiting for the backend to start processing
+            if (pollingCounter > 2) {
+              setFilterProgress(prev => ({
+                ...prev,
+                [newFilter]: {
+                  status: 'not_found',
+                  progress: 0,
+                  message: 'Waiting for processing to begin...'
+                }
+              }));
+            }
+          } else if (!processComplete) {
+            // Only update to not_found if we haven't completed
+            setFilterProgress(prev => ({
+              ...prev,
+              [newFilter]: {
+                status: 'not_found',
+                progress: 0
+              }
+            }));
           }
         } catch (error) {
           console.error('Error checking filter progress:', error);
-          clearInterval(checkProgress);
+          if (!processComplete) {
+            setFilterProgress(prev => ({
+              ...prev,
+              [newFilter]: {
+                status: 'error',
+                progress: 0,
+                error: 'Failed to check progress'
+              }
+            }));
+          }
         }
-      }, 1000);
+      }, 500); // Poll more frequently for smoother updates
       
-      // Clear interval after 2 minutes to prevent endless polling
+      // Clear interval after 5 minutes to prevent endless polling
       setTimeout(() => {
-        clearInterval(checkProgress);
-      }, 120000);
+        if (!processComplete) {
+          clearInterval(checkProgress);
+          setFilterProgress(prev => {
+            const updated = { ...prev };
+            delete updated[newFilter];
+            return updated;
+          });
+        }
+      }, 300000);
       
     } catch (error) {
       console.error('Error adding filter:', error);
@@ -193,12 +264,13 @@ export default function ManagePage() {
       const response = await apiClient.uploadFolderWithProgress({
         files: folderFiles,
         removeBg: folderRemoveBg,
-        onProgress: (status, current, total) => {
+        onProgress: (status, current, total, filterInfo) => {
           setUploadProgress({
             status,
             current,
             total,
-            percent: Math.round((current / total) * 100)
+            percent: Math.round((current / total) * 100),
+            filterInfo
           });
         }
       });
@@ -448,6 +520,32 @@ export default function ManagePage() {
                   <div className="text-xs text-blue-700 mt-1 text-right">
                     {uploadProgress.current} of {uploadProgress.total} files
                   </div>
+                  
+                  {/* Filter progress */}
+                  {uploadProgress.filterInfo && 
+                   uploadProgress.filterInfo.totalFilters && 
+                   uploadProgress.filterInfo.filterIndex && 
+                   uploadProgress.filterInfo.totalFilters > 0 && (
+                    <div className="mt-3 border-t border-blue-200 pt-2">
+                      <div className="flex justify-between mb-1">
+                        <span className="text-xs font-medium text-blue-700">Filter Progress:</span>
+                        <span className="text-xs text-blue-700">
+                          {uploadProgress.filterInfo.filterIndex} of {uploadProgress.filterInfo.totalFilters}
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-1.5 mb-1">
+                        <div 
+                          className="bg-green-500 h-1.5 rounded-full transition-all duration-300" 
+                          style={{ 
+                            width: `${Math.round(((uploadProgress.filterInfo.filterIndex || 0) / (uploadProgress.filterInfo.totalFilters || 1)) * 100)}%` 
+                          }}
+                        ></div>
+                      </div>
+                      <div className="text-xs text-blue-700 mt-1">
+                        <span className="font-medium">Current filter:</span> {uploadProgress.filterInfo.currentFilter || 'Unknown'}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               
@@ -532,23 +630,47 @@ export default function ManagePage() {
                   <div className="mb-2 text-red-600 text-sm">{filterError}</div>
                 )}
                 
-                {/* Filter Progress Display */}
+                {/* Filter Progress Section */}
                 {filterProgress && Object.keys(filterProgress).length > 0 && (
-                  <div className="mb-4 p-3 bg-blue-50 text-blue-700 rounded-md">
-                    <h4 className="text-sm font-medium mb-2">Filter Processing:</h4>
+                  <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                    <h3 className="text-lg font-medium text-blue-900 mb-2">Filter Processing</h3>
                     {Object.entries(filterProgress).map(([filter, data]) => (
-                      <div key={filter} className="mb-2">
-                        <p className="text-sm flex justify-between">
-                          <span>{filter}</span>
-                          <span>{data.status}</span>
-                        </p>
-                        {typeof data.progress === 'number' && (
-                          <div className="w-full bg-gray-200 rounded-full h-2.5 mt-1">
-                            <div 
-                              className="bg-blue-600 h-2.5 rounded-full" 
-                              style={{ width: `${data.progress}%` }}
-                            ></div>
-                          </div>
+                      <div key={filter} className="mb-3">
+                        <div className="flex justify-between mb-1">
+                          <span className="text-sm font-medium text-blue-900">{filter}</span>
+                          <span className="text-sm text-blue-700">
+                            {data.status === 'processing' ? `${Math.round(data.progress)}%` : 
+                             data.status === 'completed' ? 'Complete' : 
+                             data.status === 'not_found' ? 'Waiting to start...' : 
+                             data.status === 'error' ? 'Error' : 
+                             data.status === 'initializing' ? 'Starting...' : 'Unknown'}
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2 mb-1">
+                          <div 
+                            className={`h-2 rounded-full ${
+                              data.status === 'completed' ? 'bg-green-500' : 
+                              data.status === 'error' ? 'bg-red-500' : 
+                              'bg-blue-500'
+                            }`}
+                            style={{ width: `${data.progress}%` }}
+                          ></div>
+                        </div>
+                        {data.status === 'processing' && data.processed !== undefined && data.total !== undefined && (
+                          <p className="text-xs text-blue-700">
+                            Processing image {data.processed}/{data.total}
+                            {data.current_image && (
+                              <span className="ml-1">({data.current_image.split('_').pop()?.substring(0, 8)})</span>
+                            )}
+                          </p>
+                        )}
+                        {data.status === 'error' && data.error && (
+                          <p className="text-xs text-red-500">{data.error}</p>
+                        )}
+                        {data.status === 'not_found' && (
+                          <p className="text-xs text-blue-500">
+                            {data.message || "Preparing to process images..."}
+                          </p>
                         )}
                       </div>
                     ))}

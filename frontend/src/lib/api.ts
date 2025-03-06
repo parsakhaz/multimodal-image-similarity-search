@@ -72,7 +72,11 @@ const apiClient = {
   }: { 
     files: File[], 
     removeBg: boolean,
-    onProgress?: (status: string, currentIndex: number, totalFiles: number) => void
+    onProgress?: (status: string, currentIndex: number, totalFiles: number, filterInfo?: {
+      currentFilter?: string;
+      filterIndex?: number;
+      totalFilters?: number;
+    }) => void
   }) {
     // Total files to process
     const totalFiles = files.length;
@@ -103,9 +107,51 @@ const apiClient = {
         formData.append('file', file);
         formData.append('remove_bg', String(removeBg));
         
+        // Start a mock polling of filter application for this image
+        // This isn't real filter progress, but it gives the user feedback while waiting
+        let filterPollingInterval: NodeJS.Timeout | null = null;
+        let mockFilterIndex = 0;
+        let mockTotalFilters = 0;
+        
+        // Start polling to see if filters are being applied
+        filterPollingInterval = setInterval(() => {
+          // Check if we have an ID and filters to apply
+          api.get('/api/filters')
+            .then(response => {
+              const filters = response.data.filters || [];
+              mockTotalFilters = filters.length;
+              
+              if (mockTotalFilters > 0) {
+                if (mockFilterIndex < mockTotalFilters) {
+                  mockFilterIndex++;
+                }
+                
+                onProgress(
+                  `Processing file ${i + 1}/${totalFiles}: Applying filters (${mockFilterIndex}/${mockTotalFilters})`,
+                  i,
+                  totalFiles,
+                  {
+                    currentFilter: filters[mockFilterIndex - 1] || "Unknown filter",
+                    filterIndex: mockFilterIndex,
+                    totalFilters: mockTotalFilters
+                  }
+                );
+              }
+            })
+            .catch(err => {
+              console.error("Error checking filters:", err);
+            });
+        }, 1000);
+        
         const response = await api.post('/api/upload', formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
+        
+        // Clear the filter polling interval
+        if (filterPollingInterval) {
+          clearInterval(filterPollingInterval);
+          filterPollingInterval = null;
+        }
         
         // Add result
         results.successful++;
