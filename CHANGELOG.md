@@ -2,6 +2,31 @@
 
 All notable changes to the ImageMatch project will be documented in this file.
 
+## [2.4.0] - 2024-03-12
+
+Major improvements to batch upload process, error handling, and progress tracking.
+
+### Added
+
+- Enhanced progress tracking for batch uploads with detailed filter application feedback
+- Real-time display showing which filter is currently being processed during uploads
+- Improved error handling for duplicate image uploads with user-friendly messages
+- Conditional rendering of progress indicators to prevent UI confusion
+
+### Changed
+
+- Optimized filter polling mechanism during batch uploads to prevent memory leaks
+- Progress bar now automatically hides when upload process completes
+- Improved cleanup of resources after batch uploads
+- Enhanced error messages with more detailed information about duplicate images
+
+### Fixed
+
+- Fixed issue with repeated filter requests after batch upload completion
+- Fixed PyTorch 2.6 compatibility issue by adding `weights_only=False` parameter
+- Resolved memory leak from unclosed filter polling intervals
+- Fixed UI issue where progress bars remained visible after completion
+
 ## [2.3.0] - 2024-03-10
 
 Added folder upload functionality for batch image processing.

@@ -17,6 +17,9 @@ This application has been refactored to use a modern architecture:
 - **Background Removal**: Optionally remove image backgrounds during upload
 - **Filter System**: Create and apply filters to organize your image collection
 - **Automatic Image Captioning**: AI-generated image descriptions for better searchability
+- **Batch Upload**: Process multiple images at once with real-time progress tracking
+- **Duplicate Detection**: Automatically identify and handle duplicate images
+- **Advanced Progress Tracking**: Detailed visibility into processing steps, including filter application
 
 ## Getting Started
 
@@ -25,6 +28,7 @@ This application has been refactored to use a modern architecture:
 - Python 3.8+ for the backend
 - Node.js 18+ for the frontend
 - Git
+- PyTorch 2.0+ (compatible with PyTorch 2.6 using `weights_only=False` parameter)
 
 ### Installation
 
@@ -82,11 +86,28 @@ This application has been refactored to use a modern architecture:
 
    The frontend will be available at <http://localhost:3000>
 
+## Advanced Features
+
+### Batch Upload
+The application supports uploading and processing multiple images at once with real-time progress tracking:
+- Select multiple files for upload
+- See detailed progress for each file being processed
+- Monitor filter application in real-time
+- Automatic handling of duplicate images
+
+### Filter System
+Create and apply custom filters to organize your image collection:
+- Add new filters with natural language queries
+- Track filter processing with a progress indicator
+- Apply filters to all existing images
+- Search images using filters
+
 ## API Endpoints
 
 The backend provides the following REST API endpoints:
 
 - **POST /api/upload**: Upload and process an image
+- **POST /api/upload-folder**: Batch upload multiple images
 - **POST /api/search/image**: Search by image similarity
 - **GET /api/search/text**: Search by text description
 - **POST /api/search/multimodal**: Search using both image and text
@@ -96,6 +117,8 @@ The backend provides the following REST API endpoints:
 - **DELETE /api/filters/{filter_query}**: Delete a filter
 - **PUT /api/metadata/{image_id}**: Update image metadata
 - **POST /api/reset**: Reset the system (clear all data)
+- **GET /api/filter-progress**: Check the progress of filter processing
+- **GET /api/image/{image_id}**: Get a specific image by ID
 
 ## Technologies
 
