@@ -57,13 +57,40 @@ export const useUploadStore = create<UploadState & {
         description: '',
         customMetadata: '',
       });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Upload error:', error);
-      set({
-        error: 'An error occurred while uploading the image. Please try again.',
-        isUploading: false,
-        success: false,
-      });
+      
+      // Check if it's a duplicate image error (409 Conflict)
+      const axiosError = error as {
+        response?: {
+          status?: number;
+          data?: {
+            error?: string;
+            metadata?: {
+              id: string;
+              filename?: string;
+              description?: string;
+              url?: string;
+              [key: string]: string | number | boolean | undefined;
+            };
+            message?: string;
+          }
+        }
+      };
+      
+      if (axiosError.response?.status === 409 && axiosError.response?.data?.error?.includes('Duplicate')) {
+        set({
+          error: `This image already exists in the database (ID: ${axiosError.response.data.metadata?.id.substring(0, 8)}...)`,
+          isUploading: false,
+          success: false,
+        });
+      } else {
+        set({
+          error: axiosError.response?.data?.error || 'An error occurred while uploading the image. Please try again.',
+          isUploading: false,
+          success: false,
+        });
+      }
     }
   },
 })); 

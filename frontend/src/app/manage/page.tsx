@@ -284,10 +284,8 @@ export default function ManagePage() {
       setFolderUploadError('An error occurred while uploading the files. Please try again.');
     } finally {
       setIsUploadingFolder(false);
-      // Keep the progress visible for a moment so users can see it completed
-      setTimeout(() => {
-        setUploadProgress(null);
-      }, 2000);
+      // Reset upload progress immediately instead of using a timeout
+      setUploadProgress(null);
     }
   };
   
@@ -504,8 +502,8 @@ export default function ManagePage() {
                 </button>
               </div>
               
-              {/* Progress display */}
-              {uploadProgress && (
+              {/* Progress display - only show when actively uploading */}
+              {isUploadingFolder && uploadProgress && (
                 <div className="mt-4 p-4 bg-blue-50 rounded-md">
                   <div className="flex justify-between mb-1">
                     <span className="text-sm font-medium text-blue-700">{uploadProgress.status}</span>
@@ -570,8 +568,24 @@ export default function ManagePage() {
                           }>
                             <td className="px-4 py-2 text-sm">{result.filename}</td>
                             <td className="px-4 py-2 text-sm">
-                              {result.status}
-                              {result.reason && <span className="text-xs text-gray-500 ml-2">({result.reason})</span>}
+                              {result.status === 'success' && <span className="text-green-600">Success</span>}
+                              {result.status === 'skipped' && (
+                                <span className="text-amber-600">
+                                  Skipped
+                                  {result.reason && 
+                                    <span className="text-xs ml-2">
+                                      ({result.reason})
+                                      {result.id && <span className="italic ml-1">ID: {result.id.substring(0, 8)}...</span>}
+                                    </span>
+                                  }
+                                </span>
+                              )}
+                              {result.status === 'error' && (
+                                <span className="text-red-600">
+                                  Error
+                                  {result.reason && <span className="text-xs ml-2">({result.reason})</span>}
+                                </span>
+                              )}
                             </td>
                           </tr>
                         ))}

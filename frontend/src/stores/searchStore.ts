@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { SearchState, SearchType, ImageMetadata } from '@/types';
+import { SearchState, SearchType } from '@/types';
 import apiClient from '@/lib/api';
 
 const initialState: SearchState = {

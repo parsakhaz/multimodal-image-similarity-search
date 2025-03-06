@@ -155,10 +155,16 @@ async def upload_image(
             logger.info(f"Upload successful: {metadata['id']}")
             return {"success": True, "metadata": metadata}
         else:
-            logger.error("Upload failed during processing")
+            # This is a duplicate image case, return 409 Conflict with the duplicate metadata
+            logger.info(f"Duplicate image detected: {metadata['id']}")
             return JSONResponse(
-                status_code=500,
-                content={"success": False, "error": "Image processing failed"}
+                status_code=409,
+                content={
+                    "success": False, 
+                    "error": "Duplicate image", 
+                    "message": f"This image already exists in the database", 
+                    "metadata": metadata
+                }
             )
             
     except Exception as e:

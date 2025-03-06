@@ -96,102 +96,142 @@ const apiClient = {
       }>
     };
     
-    // Process each file
-    for (let i = 0; i < totalFiles; i++) {
-      const file = files[i];
-      onProgress(`Uploading file ${i + 1} of ${totalFiles}: ${file.name}`, i, totalFiles);
-      
-      try {
-        // Upload single file
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('remove_bg', String(removeBg));
+    // Declare filterPollingInterval at this scope to ensure we can clear it
+    let filterPollingInterval: NodeJS.Timeout | null = null;
+    
+    // Function to clean up the polling interval
+    const cleanupPolling = () => {
+      if (filterPollingInterval) {
+        clearInterval(filterPollingInterval);
+        filterPollingInterval = null;
+      }
+    };
+    
+    try {
+      // Process each file
+      for (let i = 0; i < totalFiles; i++) {
+        const file = files[i];
+        onProgress(`Uploading file ${i + 1} of ${totalFiles}: ${file.name}`, i, totalFiles);
         
-        // Start a mock polling of filter application for this image
-        // This isn't real filter progress, but it gives the user feedback while waiting
-        let filterPollingInterval: NodeJS.Timeout | null = null;
-        let mockFilterIndex = 0;
-        let mockTotalFilters = 0;
-        
-        // Start polling to see if filters are being applied
-        filterPollingInterval = setInterval(() => {
-          // Check if we have an ID and filters to apply
-          api.get('/api/filters')
-            .then(response => {
-              const filters = response.data.filters || [];
-              mockTotalFilters = filters.length;
-              
-              if (mockTotalFilters > 0) {
-                if (mockFilterIndex < mockTotalFilters) {
-                  mockFilterIndex++;
-                }
+        try {
+          // Upload single file
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('remove_bg', String(removeBg));
+          
+          // Start a mock polling of filter application for this image
+          // This isn't real filter progress, but it gives the user feedback while waiting
+          // First, clean up any existing interval
+          cleanupPolling();
+          
+          let mockFilterIndex = 0;
+          let mockTotalFilters = 0;
+          
+          // Start polling to see if filters are being applied
+          filterPollingInterval = setInterval(() => {
+            // Check if we have an ID and filters to apply
+            api.get('/api/filters')
+              .then(response => {
+                const filters = response.data.filters || [];
+                mockTotalFilters = filters.length;
                 
-                onProgress(
-                  `Processing file ${i + 1}/${totalFiles}: Applying filters (${mockFilterIndex}/${mockTotalFilters})`,
-                  i,
-                  totalFiles,
-                  {
-                    currentFilter: filters[mockFilterIndex - 1] || "Unknown filter",
-                    filterIndex: mockFilterIndex,
-                    totalFilters: mockTotalFilters
+                if (mockTotalFilters > 0) {
+                  if (mockFilterIndex < mockTotalFilters) {
+                    mockFilterIndex++;
                   }
-                );
-              }
-            })
-            .catch(err => {
-              console.error("Error checking filters:", err);
+                  
+                  onProgress(
+                    `Processing file ${i + 1}/${totalFiles}: Applying filters (${mockFilterIndex}/${mockTotalFilters})`,
+                    i,
+                    totalFiles,
+                    {
+                      currentFilter: filters[mockFilterIndex - 1] || "Unknown filter",
+                      filterIndex: mockFilterIndex,
+                      totalFilters: mockTotalFilters
+                    }
+                  );
+                }
+              })
+              .catch(err => {
+                console.error("Error checking filters:", err);
+              });
+          }, 1000);
+          
+          const response = await api.post('/api/upload', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          });
+          
+          // Clear the filter polling interval
+          cleanupPolling();
+          
+          // Add result
+          results.successful++;
+          results.results.push({
+            filename: file.name,
+            status: 'success',
+            id: response.data.metadata?.id
+          });
+          
+          // Update progress with success
+          onProgress(`Processed ${i + 1} of ${totalFiles}: ${file.name} (Success)`, i, totalFiles);
+          
+        } catch (error: unknown) {
+          // Clean up polling interval if there's an error
+          cleanupPolling();
+          
+          // Check if it's a duplicate
+          const err = error as { 
+            response?: { 
+              status?: number; 
+              data?: { 
+                error?: string; 
+                metadata?: {
+                  id: string;
+                  filename: string;
+                  description: string;
+                  url: string;
+                  thumbnail_url?: string;
+                  processed_url?: string;
+                  custom_metadata?: string;
+                  created_at?: string;
+                  [key: string]: string | number | boolean | undefined;
+                };
+                message?: string;
+              } 
+            } 
+          };
+          
+          if (err.response?.status === 409 || 
+              err.response?.data?.error?.includes('Duplicate')) {
+            results.skipped++;
+            results.results.push({
+              filename: file.name,
+              status: 'skipped',
+              reason: err.response?.data?.message || 'Duplicate image',
+              id: err.response?.data?.metadata?.id // Extract the ID of the duplicate
             });
-        }, 1000);
-        
-        const response = await api.post('/api/upload', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        
-        // Clear the filter polling interval
-        if (filterPollingInterval) {
-          clearInterval(filterPollingInterval);
-          filterPollingInterval = null;
+            onProgress(`Processed ${i + 1} of ${totalFiles}: ${file.name} (Skipped - Duplicate)`, i, totalFiles);
+          } else {
+            results.failed++;
+            results.results.push({
+              filename: file.name,
+              status: 'error',
+              reason: err.response?.data?.error || 'Unknown error'
+            });
+            onProgress(`Processed ${i + 1} of ${totalFiles}: ${file.name} (Failed)`, i, totalFiles);
+          }
         }
         
-        // Add result
-        results.successful++;
-        results.results.push({
-          filename: file.name,
-          status: 'success',
-          id: response.data.metadata?.id
-        });
-        
-        // Update progress with success
-        onProgress(`Processed ${i + 1} of ${totalFiles}: ${file.name} (Success)`, i, totalFiles);
-        
-      } catch (error: unknown) {
-        // Check if it's a duplicate
-        const err = error as { response?: { status?: number; data?: { error?: string } } };
-        if (err.response?.status === 409 || 
-            err.response?.data?.error?.includes('already exists')) {
-          results.skipped++;
-          results.results.push({
-            filename: file.name,
-            status: 'skipped',
-            reason: 'Duplicate image'
-          });
-          onProgress(`Processed ${i + 1} of ${totalFiles}: ${file.name} (Skipped - Duplicate)`, i, totalFiles);
-        } else {
-          results.failed++;
-          results.results.push({
-            filename: file.name,
-            status: 'error',
-            reason: err.response?.data?.error || 'Unknown error'
-          });
-          onProgress(`Processed ${i + 1} of ${totalFiles}: ${file.name} (Failed)`, i, totalFiles);
-        }
+        // Small delay to avoid overwhelming the server
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
       
-      // Small delay to avoid overwhelming the server
-      await new Promise(resolve => setTimeout(resolve, 100));
+      onProgress('Complete', totalFiles, totalFiles);
+    } finally {
+      // Ensure polling is cleaned up no matter what
+      cleanupPolling();
     }
     
-    onProgress('Complete', totalFiles, totalFiles);
     return { data: results };
   },
   
@@ -322,4 +362,4 @@ const apiClient = {
   },
 };
 
-export default apiClient; 
+export default apiClient;
