@@ -809,7 +809,9 @@ def load_encoded_image(image_id: str) -> Optional[Any]:
         encoded_path = f"static/encoded/{image_id}.pt"
         if os.path.exists(encoded_path):
             logger.info(f"Loading encoded image from {encoded_path}")
-            return torch.load(encoded_path)
+            # Set weights_only=False for PyTorch 2.6+ compatibility
+            # This is safe as we're loading our own generated files
+            return torch.load(encoded_path, weights_only=False)
         else:
             logger.info(f"No encoded image found at {encoded_path}")
             return None

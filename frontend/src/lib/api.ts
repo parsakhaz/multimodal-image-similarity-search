@@ -64,7 +64,92 @@ const apiClient = {
     });
   },
   
-  // Folder Upload
+  // Folder Upload with Progress Monitoring
+  async uploadFolderWithProgress({ 
+    files, 
+    removeBg = false,
+    onProgress = () => {}
+  }: { 
+    files: File[], 
+    removeBg: boolean,
+    onProgress?: (status: string, currentIndex: number, totalFiles: number) => void
+  }) {
+    // Total files to process
+    const totalFiles = files.length;
+    
+    // Upload files one by one to track progress
+    const results = {
+      success: true,
+      total: totalFiles,
+      successful: 0,
+      skipped: 0,
+      failed: 0,
+      results: [] as Array<{
+        filename: string;
+        status: string;
+        id?: string;
+        reason?: string;
+      }>
+    };
+    
+    // Process each file
+    for (let i = 0; i < totalFiles; i++) {
+      const file = files[i];
+      onProgress(`Uploading file ${i + 1} of ${totalFiles}: ${file.name}`, i, totalFiles);
+      
+      try {
+        // Upload single file
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('remove_bg', String(removeBg));
+        
+        const response = await api.post('/api/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        
+        // Add result
+        results.successful++;
+        results.results.push({
+          filename: file.name,
+          status: 'success',
+          id: response.data.metadata?.id
+        });
+        
+        // Update progress with success
+        onProgress(`Processed ${i + 1} of ${totalFiles}: ${file.name} (Success)`, i, totalFiles);
+        
+      } catch (error: unknown) {
+        // Check if it's a duplicate
+        const err = error as { response?: { status?: number; data?: { error?: string } } };
+        if (err.response?.status === 409 || 
+            err.response?.data?.error?.includes('already exists')) {
+          results.skipped++;
+          results.results.push({
+            filename: file.name,
+            status: 'skipped',
+            reason: 'Duplicate image'
+          });
+          onProgress(`Processed ${i + 1} of ${totalFiles}: ${file.name} (Skipped - Duplicate)`, i, totalFiles);
+        } else {
+          results.failed++;
+          results.results.push({
+            filename: file.name,
+            status: 'error',
+            reason: err.response?.data?.error || 'Unknown error'
+          });
+          onProgress(`Processed ${i + 1} of ${totalFiles}: ${file.name} (Failed)`, i, totalFiles);
+        }
+      }
+      
+      // Small delay to avoid overwhelming the server
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+    onProgress('Complete', totalFiles, totalFiles);
+    return { data: results };
+  },
+  
+  // Standard Folder Upload (uses the batch endpoint)
   async uploadFolder({ files, removeBg = false }: { files: File[], removeBg: boolean }) {
     const formData = new FormData();
     

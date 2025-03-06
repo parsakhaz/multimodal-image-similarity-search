@@ -65,6 +65,12 @@ export default function ManagePage() {
     }>;
   } | null>(null);
   const [folderUploadError, setFolderUploadError] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<{
+    status: string;
+    current: number;
+    total: number;
+    percent: number;
+  } | null>(null);
 
   // Fetch filters on component mount
   useEffect(() => {
@@ -176,10 +182,25 @@ export default function ManagePage() {
     try {
       setIsUploadingFolder(true);
       setFolderUploadError(null);
+      setUploadProgress({
+        status: 'Starting upload...',
+        current: 0,
+        total: folderFiles.length,
+        percent: 0
+      });
       
-      const response = await apiClient.uploadFolder({
+      // Use the progress-tracking version of the upload
+      const response = await apiClient.uploadFolderWithProgress({
         files: folderFiles,
-        removeBg: folderRemoveBg
+        removeBg: folderRemoveBg,
+        onProgress: (status, current, total) => {
+          setUploadProgress({
+            status,
+            current,
+            total,
+            percent: Math.round((current / total) * 100)
+          });
+        }
       });
       
       setFolderUploadResults(response.data);
@@ -191,6 +212,10 @@ export default function ManagePage() {
       setFolderUploadError('An error occurred while uploading the files. Please try again.');
     } finally {
       setIsUploadingFolder(false);
+      // Keep the progress visible for a moment so users can see it completed
+      setTimeout(() => {
+        setUploadProgress(null);
+      }, 2000);
     }
   };
   
@@ -406,6 +431,25 @@ export default function ManagePage() {
                   {isUploadingFolder ? 'Uploading...' : `Upload ${folderFiles.length} File(s)`}
                 </button>
               </div>
+              
+              {/* Progress display */}
+              {uploadProgress && (
+                <div className="mt-4 p-4 bg-blue-50 rounded-md">
+                  <div className="flex justify-between mb-1">
+                    <span className="text-sm font-medium text-blue-700">{uploadProgress.status}</span>
+                    <span className="text-sm text-blue-700">{uploadProgress.percent}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div 
+                      className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" 
+                      style={{ width: `${uploadProgress.percent}%` }}
+                    ></div>
+                  </div>
+                  <div className="text-xs text-blue-700 mt-1 text-right">
+                    {uploadProgress.current} of {uploadProgress.total} files
+                  </div>
+                </div>
+              )}
               
               {/* Results display */}
               {folderUploadResults && folderUploadResults.results && folderUploadResults.results.length > 0 && (
